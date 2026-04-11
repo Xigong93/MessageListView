@@ -73,7 +73,10 @@ class _MessageListPageState extends State<MessageListPage> {
                 ],
               ),
             )
-          : MessageListView(controller: _controller),
+          : MessageListView(
+              controller: _controller,
+              scrollToBottomOnLoad: widget.startMsgId == null,
+            ),
     );
   }
 }

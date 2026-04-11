@@ -12,7 +12,14 @@ import 'scroll_to_bottom_button.dart';
 class MessageListView extends StatefulWidget {
   final MessageListController controller;
 
-  const MessageListView({super.key, required this.controller});
+  /// 首次加载完成后是否滚动到底部，false 则停留在顶部。
+  final bool scrollToBottomOnLoad;
+
+  const MessageListView({
+    super.key,
+    required this.controller,
+    this.scrollToBottomOnLoad = true,
+  });
 
   @override
   State<MessageListView> createState() => _MessageListViewState();
@@ -30,15 +37,17 @@ class _MessageListViewState extends State<MessageListView> {
   bool _wasLoadingHistory = false;
   int _previousMessageCount = 0;
 
-  // HistoryAwareScrollPhysics 所需的待补偿高度
-  double _pendingCorrection = 0;
+  // HistoryAwareScrollPhysics 所需的补偿标记
+  bool _needsHistoryCorrection = false;
 
   MessageListController get _controller => widget.controller;
 
-  double _getCorrection() {
-    final v = _pendingCorrection;
-    _pendingCorrection = 0;
-    return v;
+  bool _consumeHistoryCorrection() {
+    if (_needsHistoryCorrection) {
+      _needsHistoryCorrection = false;
+      return true;
+    }
+    return false;
   }
 
   // ───────────────────────────── 生命周期 ─────────────────────────────
@@ -83,19 +92,13 @@ class _MessageListViewState extends State<MessageListView> {
     }
 
     if (_wasLoadingInitial && !c.isLoadingInitial) {
-      // ① 首次加载完成 → 跳到底部
-      _scheduleScrollToBottom(animate: false);
+      // ① 首次加载完成 → 根据配置跳到底部或顶部
+      if (widget.scrollToBottomOnLoad) {
+        _scheduleScrollToBottom(animate: false);
+      }
     } else if (_wasLoadingHistory && !c.isLoadingHistory) {
-      // ② 历史加载完成 → 下一帧计算 delta 并补偿
-      final preMaxExtent = _scrollController.position.maxScrollExtent;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || !_scrollController.hasClients) return;
-        final delta = _scrollController.position.maxScrollExtent - preMaxExtent;
-        if (delta > 0) {
-          _pendingCorrection = delta;
-          _scrollController.jumpTo(_scrollController.position.pixels + delta);
-        }
-      });
+      // ② 历史加载完成 → 设置标记，布局阶段由 physics 自动补偿
+      _needsHistoryCorrection = true;
     } else if (!c.isLoadingInitial &&
         !c.isLoadingHistory &&
         c.messages.length > _previousMessageCount) {
@@ -188,7 +191,7 @@ class _MessageListViewState extends State<MessageListView> {
           child: CustomScrollView(
             controller: _scrollController,
             physics: HistoryAwareScrollPhysics(
-              getCorrection: _getCorrection,
+              needsCorrection: _consumeHistoryCorrection,
               parent: const BouncingScrollPhysics(
                 parent: AlwaysScrollableScrollPhysics(),
               ),
