@@ -19,9 +19,13 @@ class MessageListController extends ChangeNotifier {
   bool _isLoadingNewMessage = false;
 
   List<Message> get messages => List.unmodifiable(_messages);
+
   bool get isLoadingInitial => _isLoadingInitial;
+
   bool get isLoadingHistory => _isLoadingHistory;
+
   bool get hasMoreHistory => _hasMoreHistory;
+
   bool get isLoadingNewMessage => _isLoadingNewMessage;
 
   // ───────────────────────────── 公开方法 ─────────────────────────────
@@ -37,27 +41,37 @@ class MessageListController extends ChangeNotifier {
   /// 加载更多历史消息，插入列表头部。
   Future<void> loadMoreHistory() async {
     if (_isLoadingHistory || !_hasMoreHistory) return;
-
+    final oldestMsgId = messages.firstOrNull?.id;
+    if (oldestMsgId == null) return;
     _isLoadingHistory = true;
     notifyListeners();
 
-    final result = await _service.fetchHistoryMessages();
-    _messages.insertAll(0, result.messages);
+    final list = await _service.fetchHistoryMessages(oldestMsgId);
+    _messages.insertAll(0, list);
     _isLoadingHistory = false;
-    _hasMoreHistory = result.hasMore;
+    _hasMoreHistory = list.isNotEmpty;
     notifyListeners();
   }
 
-  /// 拉取一条新消息，追加到列表末尾。
+  /// 拉取新消息，追加到列表末尾。
   Future<void> loadNewMessage() async {
     if (_isLoadingNewMessage) return;
-
+    final newestMsgId = messages.lastOrNull?.id;
+    if (newestMsgId == null) return;
     _isLoadingNewMessage = true;
     notifyListeners();
 
-    final message = await _service.fetchNewMessage();
-    _messages.add(message);
+    final list = await _service.fetchNewMessage(newestMsgId);
+    _messages.addAll(list);
     _isLoadingNewMessage = false;
+    notifyListeners();
+  }
+
+  void addNewMessage() {
+    final newestMsgId = messages.lastOrNull?.id;
+    if (newestMsgId == null) return;
+    final message = _service.newMessage(newestMsgId);
+    _messages.add(message);
     notifyListeners();
   }
 
@@ -72,5 +86,4 @@ class MessageListController extends ChangeNotifier {
     notifyListeners();
     await initialize();
   }
-
 }

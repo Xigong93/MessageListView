@@ -213,7 +213,7 @@ class _MessageListPageState extends State<MessageListPage> {
             icon: const Icon(Icons.mark_chat_unread_outlined),
             onPressed: _controller.isLoadingInitial || _controller.isLoadingNewMessage
                 ? null
-                : _controller.loadNewMessage,
+                : _controller.addNewMessage,
           ),
           IconButton(
             tooltip: '重置页面',
