@@ -7,8 +7,10 @@ import 'mock_message_service.dart';
 /// 视图通过 [addListener] 订阅变化，并从只读属性中读取最新状态。
 class MessageListController extends ChangeNotifier {
   MockMessageService _service;
+  int? _startMsgId;
 
-  MessageListController(this._service);
+  MessageListController(this._service, {int? startMsgId})
+      : _startMsgId = startMsgId;
 
   // ───────────────────────────── 状态 ─────────────────────────────
 
@@ -32,7 +34,7 @@ class MessageListController extends ChangeNotifier {
 
   /// 首次加载。
   Future<void> initialize() async {
-    final msgs = await _service.fetchInitialMessages();
+    final msgs = await _service.fetchInitialMessages(startMsgId: _startMsgId);
     _messages = msgs;
     _isLoadingInitial = false;
     notifyListeners();
@@ -83,6 +85,7 @@ class MessageListController extends ChangeNotifier {
     _isLoadingHistory = false;
     _hasMoreHistory = true;
     _isLoadingNewMessage = false;
+    _startMsgId = null;
     notifyListeners();
     await initialize();
   }

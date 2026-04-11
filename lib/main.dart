@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'message_list_page.dart';
+import 'home_page.dart';
 
 void main() {
   runApp(const App());
@@ -17,7 +17,7 @@ class App extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2196F3)),
         useMaterial3: true,
       ),
-      home: const MessageListPage(),
+      home: const HomePage(),
     );
   }
 }

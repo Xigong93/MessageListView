@@ -13,10 +13,11 @@ class MockMessageService {
     );
   }
 
-  /// 首次加载
-  Future<List<Message>> fetchInitialMessages() async {
+  /// 首次加载，[startMsgId] 为展示的第一条消息 ID，为空时使用默认值。
+  Future<List<Message>> fetchInitialMessages({int? startMsgId}) async {
     await delay();
-    return _batch((index) => index + _newestId);
+    final start = startMsgId ?? _newestId;
+    return _batch((index) => start + index);
   }
 
   Future<void> delay() => Future.delayed(const Duration(milliseconds: 1000));
