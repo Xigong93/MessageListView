@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 
-import 'message_bubble.dart';
-import 'message_list_controller.dart';
+import '../message_bubble.dart';
+import '../message_list_controller.dart';
+import 'history_aware_scroll_physics.dart';
+import 'load_history_state_indicator.dart';
+import 'load_new_state_indicator.dart';
+import 'scroll_to_bottom_button.dart';
 
 /// 消息列表视图，负责消息展示、滚动管理和加载触发。
 /// 页面只需传入 [MessageListController]，不处理列表相关的业务逻辑。
@@ -170,34 +174,6 @@ class _MessageListViewState extends State<MessageListView> {
     );
   }
 
-  // ───────────────────────────── 列表构建辅助 ─────────────────────────────
-
-  bool get _showTopIndicator =>
-      _controller.isLoadingHistory || !_controller.hasMoreHistory;
-
-  bool get _showBottomIndicator => _controller.isLoadingNewMessage;
-
-  int get _itemCount =>
-      _controller.messages.length +
-      (_showTopIndicator ? 1 : 0) +
-      (_showBottomIndicator ? 1 : 0);
-
-  Widget _buildListItem(BuildContext context, int index) {
-    final topOffset = _showTopIndicator ? 1 : 0;
-
-    if (_showTopIndicator && index == 0) {
-      return _controller.isLoadingHistory
-          ? const _TopLoadingIndicator()
-          : const _NoMoreHistoryHint();
-    }
-
-    if (_showBottomIndicator && index == _itemCount - 1) {
-      return const _BottomLoadingIndicator();
-    }
-
-    return MessageBubble(message: _controller.messages[index - topOffset]);
-  }
-
   // ───────────────────────────── UI ─────────────────────────────
 
   @override
@@ -211,7 +187,7 @@ class _MessageListViewState extends State<MessageListView> {
             }
             return false;
           },
-          child: ListView.builder(
+          child: CustomScrollView(
             controller: _scrollController,
             physics: HistoryAwareScrollPhysics(
               getCorrection: _getCorrection,
@@ -219,177 +195,43 @@ class _MessageListViewState extends State<MessageListView> {
                 parent: AlwaysScrollableScrollPhysics(),
               ),
             ),
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            itemCount: _itemCount,
-            itemBuilder: _buildListItem,
+            slivers: [
+              // 顶部：历史消息加载状态
+              SliverToBoxAdapter(
+                child: LoadHistoryStateIndicator(
+                  isLoading: _controller.isLoadingHistory,
+                  visible: _controller.isLoadingHistory ||
+                      !_controller.hasMoreHistory,
+                ),
+              ),
+              // 中间：消息列表
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                sliver: SliverList.builder(
+                  itemCount: _controller.messages.length,
+                  itemBuilder: (context, index) =>
+                      MessageBubble(message: _controller.messages[index]),
+                ),
+              ),
+              // 底部：新消息加载状态
+              SliverToBoxAdapter(
+                child: LoadNewStateIndicator(
+                  isLoading: _controller.isLoadingNewMessage,
+                ),
+              ),
+            ],
           ),
         ),
         if (_showScrollToBottom)
           Positioned(
             bottom: 12,
             right: 12,
-            child: _ScrollToBottomButton(
+            child: ScrollToBottomButton(
               unreadCount: _unreadCount,
               onTap: _scrollToBottom,
             ),
           ),
       ],
-    );
-  }
-}
-
-// ───────────────────────────── ScrollPhysics ─────────────────────────────
-
-/// 在内容顶部插入历史消息后，通过 [adjustPositionForNewDimensions] 自动补偿
-/// 滚动偏移，使已有内容保持视觉位置不变。
-class HistoryAwareScrollPhysics extends ScrollPhysics {
-  final double Function() getCorrection;
-
-  const HistoryAwareScrollPhysics({
-    required this.getCorrection,
-    super.parent,
-  });
-
-  @override
-  HistoryAwareScrollPhysics applyTo(ScrollPhysics? ancestor) {
-    return HistoryAwareScrollPhysics(
-      getCorrection: getCorrection,
-      parent: buildParent(ancestor),
-    );
-  }
-
-  @override
-  double adjustPositionForNewDimensions({
-    required ScrollMetrics oldPosition,
-    required ScrollMetrics newPosition,
-    required bool isScrolling,
-    required double velocity,
-  }) {
-    final contentGrew =
-        newPosition.maxScrollExtent > oldPosition.maxScrollExtent;
-    if (contentGrew) {
-      final correction = getCorrection();
-      if (correction != 0) return newPosition.pixels + correction;
-    }
-    return super.adjustPositionForNewDimensions(
-      oldPosition: oldPosition,
-      newPosition: newPosition,
-      isScrolling: isScrolling,
-      velocity: velocity,
-    );
-  }
-}
-
-// ───────────────────────────── 辅助小组件 ─────────────────────────────
-
-class _TopLoadingIndicator extends StatelessWidget {
-  const _TopLoadingIndicator();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.symmetric(vertical: 16),
-      child: Center(
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-            SizedBox(width: 8),
-            Text('加载更多消息...',
-                style: TextStyle(color: Colors.grey, fontSize: 13)),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _NoMoreHistoryHint extends StatelessWidget {
-  const _NoMoreHistoryHint();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.symmetric(vertical: 12),
-      child: Center(
-        child: Text('没有更多消息了',
-            style: TextStyle(color: Colors.grey, fontSize: 12)),
-      ),
-    );
-  }
-}
-
-class _BottomLoadingIndicator extends StatelessWidget {
-  const _BottomLoadingIndicator();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.symmetric(vertical: 16),
-      child: Center(
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-            SizedBox(width: 8),
-            Text('正在获取新消息...',
-                style: TextStyle(color: Colors.grey, fontSize: 13)),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ScrollToBottomButton extends StatelessWidget {
-  final int unreadCount;
-  final VoidCallback onTap;
-
-  const _ScrollToBottomButton(
-      {required this.unreadCount, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              blurRadius: 6,
-              // ignore: deprecated_member_use
-              color: Colors.black.withOpacity(0.12),
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (unreadCount > 0) ...[
-              Text(
-                '$unreadCount 条新消息',
-                style: const TextStyle(
-                    fontSize: 13, color: Color(0xFF2196F3)),
-              ),
-              const SizedBox(width: 4),
-            ],
-            const Icon(Icons.keyboard_arrow_down_rounded,
-                size: 20, color: Color(0xFF2196F3)),
-          ],
-        ),
-      ),
     );
   }
 }

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'message_list_controller.dart';
-import 'message_list_view.dart';
+import 'message_list_view/message_list_view.dart';
 import 'mock_message_service.dart';
 
 class MessageListPage extends StatefulWidget {
