@@ -27,10 +27,16 @@ class MessageListController {
   final ValueNotifier<LoadMoreStatus> loadNewStatus =
       ValueNotifier(LoadMoreStatus.idle);
 
+  /// 头部插入内容后发出通知，供滚动组件补偿位置。
+  final ValueNotifier<int> prependNotifier = ValueNotifier(0);
+
   // ───────────────────────────── 公开方法 ─────────────────────────────
 
   /// 首次加载消息，[startMsgId] 为展示的第一条消息 ID，为空时使用默认值。
   Future<void> loadMessage({int? startMsgId}) async {
+    /// 设置是否可以加载更多
+    loadNewStatus.value =
+        startMsgId != null ? LoadMoreStatus.idle : LoadMoreStatus.noMore;
     isLoadingInitial.value = true;
     final list = await _service.fetchInitialMessages(startMsgId: startMsgId);
     messages.value = list;
@@ -46,6 +52,9 @@ class MessageListController {
 
     final list = await _service.fetchHistoryMessages(oldestMsgId);
     messages.value = [...list, ...messages.value];
+    if (list.isNotEmpty) {
+      prependNotifier.value++;
+    }
     loadHistoryStatus.value =
         list.isEmpty ? LoadMoreStatus.noMore : LoadMoreStatus.idle;
   }
@@ -87,5 +96,6 @@ class MessageListController {
     isLoadingInitial.dispose();
     loadHistoryStatus.dispose();
     loadNewStatus.dispose();
+    prependNotifier.dispose();
   }
 }
