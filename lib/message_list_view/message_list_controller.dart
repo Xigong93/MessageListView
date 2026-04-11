@@ -31,10 +31,19 @@ class MessageListController {
   final ValueNotifier<LoadMoreStatus> loadNewStatus =
       ValueNotifier(LoadMoreStatus.idle);
 
+  /// 首次加载完成后是否应滚动到底部（由 [loadMessage] 的 startMsgId 决定）。
+  bool get shouldScrollToBottom => _shouldScrollToBottom;
+  bool _shouldScrollToBottom = true;
+
   // ───────────────────────────── 公开方法 ─────────────────────────────
 
   /// 首次加载消息，[startMsgId] 为展示的第一条消息 ID，为空时使用默认值。
+  ///
+  /// - startMsgId == null：加载最新消息，完成后视图应滚动到底部。
+  /// - startMsgId != null：加载指定位置消息，完成后视图应滚动到顶部。
   Future<void> loadMessage({int? startMsgId}) async {
+    _shouldScrollToBottom = startMsgId == null;
+    loadHistoryStatus.value = LoadMoreStatus.idle;
     loadNewStatus.value =
         startMsgId != null ? LoadMoreStatus.idle : LoadMoreStatus.noMore;
     isLoadingInitial.value = true;
