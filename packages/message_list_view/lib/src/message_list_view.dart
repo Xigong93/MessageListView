@@ -17,14 +17,12 @@ typedef MessageItemBuilder<T> = Widget Function(
 ///
 /// 列表项通过 [itemBuilder] 回调构建，与具体业务类型解耦。
 class MessageListView<T> extends StatefulWidget {
-  final MessageListController controller;
-  final MessageDataSource<T> dataSource;
+  final MessageListController<T> controller;
   final MessageItemBuilder<T> itemBuilder;
 
   const MessageListView(
     this.controller, {
     super.key,
-    required this.dataSource,
     required this.itemBuilder,
   });
 
@@ -38,9 +36,9 @@ class _MessageListViewState<T> extends State<MessageListView<T>> {
   /// 初始滚动定位完成后置为 true，防止定位前触发加载。
   bool _isReady = false;
 
-  MessageDataSource<T> get _dataSource => widget.dataSource;
+  MessageListController<T> get _controller => widget.controller;
 
-  MessageListController get _controller => widget.controller;
+  MessageDataSource<T> get _dataSource => _controller.dataSource;
 
   ScrollController get _scrollController => _controller.scrollController;
 
@@ -56,7 +54,6 @@ class _MessageListViewState<T> extends State<MessageListView<T>> {
   @override
   void dispose() {
     _dataSource.isLoadingInitial.removeListener(_onInitialLoadChanged);
-    _scrollController.dispose();
     super.dispose();
   }
 
@@ -67,13 +64,9 @@ class _MessageListViewState<T> extends State<MessageListView<T>> {
       // 重新加载（如 reset），隐藏列表
       setState(() => _isReady = false);
     } else {
-      // 加载完成，等待布局后滚动到目标位置
+      // 加载完成，等待布局后显示列表
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || !_scrollController.hasClients) return;
-        if (_dataSource.shouldScrollToBottom) {
-          _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
-        }
-        // 定位完成后再显示列表，避免跳动
+        if (!mounted) return;
         setState(() => _isReady = true);
       });
     }

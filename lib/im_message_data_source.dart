@@ -9,19 +9,11 @@ class ImMessageDataSource extends MessageDataSource<Message> {
 
   ImMessageDataSource();
 
-  bool _shouldScrollToBottom = true;
-
-  @override
-  bool get shouldScrollToBottom => _shouldScrollToBottom;
-
   // ───────────────────────────── 公开方法 ─────────────────────────────
 
   /// 首次加载消息，[startMsgId] 为展示的第一条消息 ID，为空时使用默认值。
-  ///
-  /// - startMsgId == null：加载最新消息，完成后视图应滚动到底部。
-  /// - startMsgId != null：加载指定位置消息，完成后视图应滚动到顶部。
+  @override
   Future<void> loadMessage({int? startMsgId}) async {
-    _shouldScrollToBottom = startMsgId == null;
     loadHistoryStatus.value = LoadMoreStatus.idle;
     loadNewStatus.value =
         startMsgId != null ? LoadMoreStatus.idle : LoadMoreStatus.noMore;
@@ -69,13 +61,9 @@ class ImMessageDataSource extends MessageDataSource<Message> {
     messages.value = [...messages.value, message];
   }
 
-  /// 重置为初始状态，重新加载。
-  Future<void> reset() async {
+  /// 重置为初始状态，清空所有数据。
+  void reset() {
     messages.value = [];
     historyMessages.value = [];
-    isLoadingInitial.value = true;
-    loadHistoryStatus.value = LoadMoreStatus.idle;
-    loadNewStatus.value = LoadMoreStatus.idle;
-    await loadMessage();
   }
 }

@@ -3,8 +3,8 @@ import 'package:message_list_view/message_list_view.dart';
 
 import 'capsule_button.dart';
 import 'im_message_data_source.dart';
+import 'message.dart';
 import 'message_bubble.dart';
-import 'mock_message_service.dart';
 
 class MessageListPage extends StatefulWidget {
   final int? startMsgId;
@@ -16,19 +16,25 @@ class MessageListPage extends StatefulWidget {
 }
 
 class _MessageListPageState extends State<MessageListPage> {
-  final _controller = MessageListController();
   final _datasource = ImMessageDataSource();
+  late final _controller = MessageListController<Message>(_datasource);
 
   @override
   void initState() {
     super.initState();
-    _datasource.loadMessage(startMsgId: widget.startMsgId);
+    _controller.loadMessage(startMsgId: widget.startMsgId);
   }
 
   @override
   void dispose() {
-    _datasource.dispose();
+    _controller.dispose();
     super.dispose();
+  }
+
+  /// 重置并重新加载。
+  Future<void> _reset() async {
+    _datasource.reset();
+    await _controller.loadMessage();
   }
 
   @override
@@ -52,9 +58,8 @@ class _MessageListPageState extends State<MessageListPage> {
       body: Column(
         children: [
           Expanded(
-            child: MessageListView(
+            child: MessageListView<Message>(
               _controller,
-              dataSource: _datasource,
               itemBuilder: (context, message, index) =>
                   MessageBubble(message: message),
             ),
@@ -99,7 +104,7 @@ class _MessageListPageState extends State<MessageListPage> {
                 child: CapsuleButton(
                   text: '重置页面',
                   enabled: !isLoadingInitial,
-                  onTap: _datasource.reset,
+                  onTap: _reset,
                 ),
               ),
             ],

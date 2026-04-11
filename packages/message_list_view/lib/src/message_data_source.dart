@@ -27,10 +27,10 @@ abstract class MessageDataSource<T> {
   final ValueNotifier<LoadMoreStatus> loadNewStatus =
       ValueNotifier(LoadMoreStatus.idle);
 
-  /// 首次加载完成后是否应滚动到底部。
-  bool get shouldScrollToBottom;
-
   // ───────────────────────────── 加载方法 ─────────────────────────────
+
+  /// 首次加载消息。[startMsgId] 为起始消息 ID，为空时加载最新消息。
+  Future<void> loadMessage({int? startMsgId});
 
   /// 加载更多历史数据（向上方向）。由视图在滚动接近顶部时调用。
   Future<void> loadMoreHistory();
