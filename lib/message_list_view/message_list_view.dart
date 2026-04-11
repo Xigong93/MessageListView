@@ -55,7 +55,7 @@ class _MessageListViewState extends State<MessageListView> {
   @override
   void initState() {
     super.initState();
-    _controller.addListener(_onControllerChanged);
+    _addControllerListeners();
     _scrollController.addListener(_onScroll);
   }
 
@@ -63,25 +63,42 @@ class _MessageListViewState extends State<MessageListView> {
   void didUpdateWidget(covariant MessageListView oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.controller != widget.controller) {
-      oldWidget.controller.removeListener(_onControllerChanged);
-      widget.controller.addListener(_onControllerChanged);
+      _removeControllerListeners(oldWidget.controller);
+      _addControllerListeners();
     }
   }
 
   @override
   void dispose() {
-    _controller.removeListener(_onControllerChanged);
+    _removeControllerListeners(_controller);
     _scrollController.dispose();
     super.dispose();
   }
 
+  void _addControllerListeners() {
+    _controller.isLoadingInitial.addListener(_onLoadingInitialChanged);
+    _controller.isLoadingHistory.addListener(_onLoadingHistoryChanged);
+    _controller.messages.addListener(_onMessagesChanged);
+    _controller.isLoadingNewMessage.addListener(_onStateChanged);
+    _controller.hasMoreHistory.addListener(_onStateChanged);
+  }
+
+  void _removeControllerListeners(MessageListController c) {
+    c.isLoadingInitial.removeListener(_onLoadingInitialChanged);
+    c.isLoadingHistory.removeListener(_onLoadingHistoryChanged);
+    c.messages.removeListener(_onMessagesChanged);
+    c.isLoadingNewMessage.removeListener(_onStateChanged);
+    c.hasMoreHistory.removeListener(_onStateChanged);
+  }
+
   // ───────────────────────────── 控制器变化响应 ─────────────────────────────
 
-  void _onControllerChanged() {
-    final c = _controller;
+  /// isLoadingInitial 变化时的回调。
+  void _onLoadingInitialChanged() {
+    final isLoading = _controller.isLoadingInitial.value;
 
-    // 控制器重置（重新进入初始加载）→ 清空视图状态
-    if (c.isLoadingInitial) {
+    if (isLoading) {
+      // 控制器重置 → 清空视图状态
       _showScrollToBottom = false;
       _unreadCount = 0;
       _wasLoadingInitial = true;
@@ -91,25 +108,49 @@ class _MessageListViewState extends State<MessageListView> {
       return;
     }
 
-    if (_wasLoadingInitial && !c.isLoadingInitial) {
-      // ① 首次加载完成 → 根据配置跳到底部或顶部
+    if (_wasLoadingInitial && !isLoading) {
+      // 首次加载完成 → 根据配置跳到底部或顶部
       if (widget.scrollToBottomOnLoad) {
         _scheduleScrollToBottom(animate: false);
       }
-    } else if (_wasLoadingHistory && !c.isLoadingHistory) {
-      // ② 历史加载完成 → 设置标记，布局阶段由 physics 自动补偿
+      _previousMessageCount = _controller.messages.value.length;
+    }
+
+    _wasLoadingInitial = isLoading;
+    if (mounted) setState(() {});
+  }
+
+  /// isLoadingHistory 变化时的回调。
+  void _onLoadingHistoryChanged() {
+    final isLoading = _controller.isLoadingHistory.value;
+
+    if (_wasLoadingHistory && !isLoading) {
+      // 历史加载完成 → 设置标记，布局阶段由 physics 自动补偿
       _needsHistoryCorrection = true;
-    } else if (!c.isLoadingInitial &&
-        !c.isLoadingHistory &&
-        c.messages.length > _previousMessageCount) {
-      // ③ 新消息追加 → 在底部则跟随，否则累积未读
+      _previousMessageCount = _controller.messages.value.length;
+    }
+
+    _wasLoadingHistory = isLoading;
+    if (mounted) setState(() {});
+  }
+
+  /// messages 变化时的回调（新消息追加等场景）。
+  void _onMessagesChanged() {
+    final currentCount = _controller.messages.value.length;
+
+    // 排除首次加载和历史加载（由各自的回调处理）
+    if (!_controller.isLoadingInitial.value &&
+        !_controller.isLoadingHistory.value &&
+        currentCount > _previousMessageCount) {
       _handleMessageAppended();
     }
 
-    _wasLoadingInitial = c.isLoadingInitial;
-    _wasLoadingHistory = c.isLoadingHistory;
-    _previousMessageCount = c.messages.length;
+    _previousMessageCount = currentCount;
+    if (mounted) setState(() {});
+  }
 
+  /// 其他状态变化（isLoadingNewMessage、hasMoreHistory）仅触发重建。
+  void _onStateChanged() {
     if (mounted) setState(() {});
   }
 
@@ -146,16 +187,17 @@ class _MessageListViewState extends State<MessageListView> {
 
     // 滚到顶部附近时拉取历史
     if (_scrollController.offset <= 80 &&
-        !_controller.isLoadingHistory &&
-        _controller.hasMoreHistory &&
-        !_controller.isLoadingInitial) {
+        !_controller.isLoadingHistory.value &&
+        _controller.hasMoreHistory.value &&
+        !_controller.isLoadingInitial.value) {
       _controller.loadMoreHistory();
     }
 
     // 更新"滚到底部"按钮
     final isNearBottom = _scrollController.offset >=
         _scrollController.position.maxScrollExtent - 100;
-    final shouldShow = !isNearBottom && _controller.messages.isNotEmpty;
+    final shouldShow =
+        !isNearBottom && _controller.messages.value.isNotEmpty;
 
     if (_showScrollToBottom != shouldShow ||
         (isNearBottom && _unreadCount > 0)) {
@@ -179,11 +221,13 @@ class _MessageListViewState extends State<MessageListView> {
 
   @override
   Widget build(BuildContext context) {
+    final messages = _controller.messages.value;
+
     return Stack(
       children: [
         NotificationListener<OverscrollNotification>(
           onNotification: (n) {
-            if (n.overscroll > 0 && !_controller.isLoadingNewMessage) {
+            if (n.overscroll > 0 && !_controller.isLoadingNewMessage.value) {
               _controller.loadNewMessage();
             }
             return false;
@@ -200,22 +244,22 @@ class _MessageListViewState extends State<MessageListView> {
               // 顶部：历史消息加载状态
               SliverToBoxAdapter(
                 child: LoadHistoryStateIndicator(
-                  isLoading: _controller.isLoadingHistory,
+                  isLoading: _controller.isLoadingHistory.value,
                 ),
               ),
               // 中间：消息列表
               SliverPadding(
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 sliver: SliverList.builder(
-                  itemCount: _controller.messages.length,
+                  itemCount: messages.length,
                   itemBuilder: (context, index) =>
-                      MessageBubble(message: _controller.messages[index]),
+                      MessageBubble(message: messages[index]),
                 ),
               ),
               // 底部：新消息加载状态
               SliverToBoxAdapter(
                 child: LoadNewStateIndicator(
-                  isLoading: _controller.isLoadingNewMessage,
+                  isLoading: _controller.isLoadingNewMessage.value,
                 ),
               ),
             ],
