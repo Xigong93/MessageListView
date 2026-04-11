@@ -63,14 +63,9 @@ class _MessageListPageState extends State<MessageListPage> {
         ],
       ),
       body: _controller.isLoadingInitial
-          ? const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text('加载消息中...', style: TextStyle(color: Colors.grey)),
-                ],
+          ? Center(
+              child: CircularProgressIndicator(
+                color: Colors.grey[400],
               ),
             )
           : MessageListView(

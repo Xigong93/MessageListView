@@ -201,7 +201,6 @@ class _MessageListViewState extends State<MessageListView> {
               SliverToBoxAdapter(
                 child: LoadHistoryStateIndicator(
                   isLoading: _controller.isLoadingHistory,
-                  visible: true,
                 ),
               ),
               // 中间：消息列表

@@ -15,7 +15,7 @@ class MessageBubble extends StatelessWidget {
         children: [
           CircleAvatar(
             radius: 18,
-            backgroundColor: Colors.purple[400],
+            backgroundColor: Colors.blue[400],
             child: const Text(
               'A',
               style: TextStyle(
@@ -28,8 +28,7 @@ class MessageBubble extends StatelessWidget {
           const SizedBox(width: 8),
           Flexible(
             child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: const BorderRadius.only(
