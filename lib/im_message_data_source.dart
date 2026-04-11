@@ -3,11 +3,11 @@ import 'package:message_list_view/message_list_view.dart';
 import 'message.dart';
 import 'mock_message_service.dart';
 
-/// IM 场景的消息列表控制器，实现 [MessageListController] 抽象。
-class ImMessageListController extends MessageListController<Message> {
-  MockMessageService _service;
+/// IM 场景的消息列表控制器，实现 [MessageDataSource] 抽象。
+class ImMessageDataSource extends MessageDataSource<Message> {
+  final _service = MockMessageService();
 
-  ImMessageListController(this._service);
+  ImMessageDataSource();
 
   bool _shouldScrollToBottom = true;
 
@@ -71,7 +71,6 @@ class ImMessageListController extends MessageListController<Message> {
 
   /// 重置为初始状态，重新加载。
   Future<void> reset() async {
-    _service = MockMessageService();
     messages.value = [];
     historyMessages.value = [];
     isLoadingInitial.value = true;

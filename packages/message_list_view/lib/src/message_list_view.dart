@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:message_list_view/src/message_list_controller.dart';
 
 import 'load_more_status.dart';
 import 'loading_indicator.dart';
-import 'message_list_controller.dart';
+import 'message_data_source.dart';
 
 /// 构建列表项的回调。
-typedef ItemWidgetBuilder<T> = Widget Function(BuildContext context, T item);
+typedef MessageItemBuilder<T> = Widget Function(
+    BuildContext context, T item, int index);
 
 /// 双向消息列表视图，负责消息展示、滚动管理和加载触发。
 ///
@@ -15,12 +17,14 @@ typedef ItemWidgetBuilder<T> = Widget Function(BuildContext context, T item);
 ///
 /// 列表项通过 [itemBuilder] 回调构建，与具体业务类型解耦。
 class MessageListView<T> extends StatefulWidget {
-  final MessageListController<T> controller;
-  final ItemWidgetBuilder<T> itemBuilder;
+  final MessageListController controller;
+  final MessageDataSource<T> dataSource;
+  final MessageItemBuilder<T> itemBuilder;
 
-  const MessageListView({
+  const MessageListView(
+    this.controller, {
     super.key,
-    required this.controller,
+    required this.dataSource,
     required this.itemBuilder,
   });
 
@@ -29,13 +33,16 @@ class MessageListView<T> extends StatefulWidget {
 }
 
 class _MessageListViewState<T> extends State<MessageListView<T>> {
-  final _scrollController = ScrollController();
   final _centerKey = UniqueKey();
 
   /// 初始滚动定位完成后置为 true，防止定位前触发加载。
   bool _isReady = false;
 
-  MessageListController<T> get _controller => widget.controller;
+  MessageDataSource<T> get _dataSource => widget.dataSource;
+
+  MessageListController get _controller => widget.controller;
+
+  ScrollController get _scrollController => _controller.scrollController;
 
   // ───────────────────────────── 生命周期 ─────────────────────────────
 
@@ -43,12 +50,12 @@ class _MessageListViewState<T> extends State<MessageListView<T>> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
-    _controller.isLoadingInitial.addListener(_onInitialLoadChanged);
+    _dataSource.isLoadingInitial.addListener(_onInitialLoadChanged);
   }
 
   @override
   void dispose() {
-    _controller.isLoadingInitial.removeListener(_onInitialLoadChanged);
+    _dataSource.isLoadingInitial.removeListener(_onInitialLoadChanged);
     _scrollController.dispose();
     super.dispose();
   }
@@ -56,14 +63,14 @@ class _MessageListViewState<T> extends State<MessageListView<T>> {
   // ───────────────────────────── 初始加载完成处理 ─────────────────────────────
 
   void _onInitialLoadChanged() {
-    if (_controller.isLoadingInitial.value) {
+    if (_dataSource.isLoadingInitial.value) {
       // 重新加载（如 reset），隐藏列表
       setState(() => _isReady = false);
     } else {
       // 加载完成，等待布局后滚动到目标位置
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || !_scrollController.hasClients) return;
-        if (_controller.shouldScrollToBottom) {
+        if (_dataSource.shouldScrollToBottom) {
           _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
         }
         // 定位完成后再显示列表，避免跳动
@@ -80,16 +87,16 @@ class _MessageListViewState<T> extends State<MessageListView<T>> {
 
     // 接近反方向顶端 → 加载更多历史
     if (position.pixels - position.minScrollExtent <= 80 &&
-        _controller.loadHistoryStatus.value == LoadMoreStatus.idle &&
-        !_controller.isLoadingInitial.value) {
-      _controller.loadMoreHistory();
+        _dataSource.loadHistoryStatus.value == LoadMoreStatus.idle &&
+        !_dataSource.isLoadingInitial.value) {
+      _dataSource.loadMoreHistory();
     }
 
     // 接近正方向底端 → 加载更多新消息
     if (position.maxScrollExtent - position.pixels <= 80 &&
-        _controller.loadNewStatus.value == LoadMoreStatus.idle &&
-        !_controller.isLoadingInitial.value) {
-      _controller.loadNewMessage();
+        _dataSource.loadNewStatus.value == LoadMoreStatus.idle &&
+        !_dataSource.isLoadingInitial.value) {
+      _dataSource.loadNewMessage();
     }
   }
 
@@ -133,7 +140,7 @@ class _MessageListViewState<T> extends State<MessageListView<T>> {
 
   Widget _buildCenterLoading() {
     return ValueListenableBuilder(
-      valueListenable: _controller.isLoadingInitial,
+      valueListenable: _dataSource.isLoadingInitial,
       builder: (_, visible, __) {
         return Visibility(
           visible: visible,
@@ -151,12 +158,12 @@ class _MessageListViewState<T> extends State<MessageListView<T>> {
 
   Widget _buildHistoryMessageList() {
     return ValueListenableBuilder(
-      valueListenable: _controller.historyMessages,
+      valueListenable: _dataSource.historyMessages,
       builder: (_, historyMessages, __) {
         return SliverList.builder(
           itemCount: historyMessages.length,
           itemBuilder: (context, index) =>
-              widget.itemBuilder(context, historyMessages[index]),
+              widget.itemBuilder(context, historyMessages[index], index),
         );
       },
     );
@@ -166,12 +173,12 @@ class _MessageListViewState<T> extends State<MessageListView<T>> {
 
   Widget _buildMessageList() {
     return ValueListenableBuilder(
-      valueListenable: _controller.messages,
+      valueListenable: _dataSource.messages,
       builder: (_, messages, __) {
         return SliverList.builder(
           itemCount: messages.length,
           itemBuilder: (context, index) =>
-              widget.itemBuilder(context, messages[index]),
+              widget.itemBuilder(context, messages[index], index),
         );
       },
     );
@@ -180,16 +187,16 @@ class _MessageListViewState<T> extends State<MessageListView<T>> {
   Widget _buildTopLoadingIndicator() {
     return ListenableBuilder(
       listenable: Listenable.merge([
-        _controller.isLoadingInitial,
-        _controller.loadHistoryStatus,
+        _dataSource.isLoadingInitial,
+        _dataSource.loadHistoryStatus,
       ]),
       builder: (_, __) {
-        if (_controller.isLoadingInitial.value) {
+        if (_dataSource.isLoadingInitial.value) {
           return const SliverToBoxAdapter(child: SizedBox.shrink());
         }
         return SliverToBoxAdapter(
           child: TopLoadingIndicator(
-            status: _controller.loadHistoryStatus.value,
+            status: _dataSource.loadHistoryStatus.value,
           ),
         );
       },
@@ -199,16 +206,16 @@ class _MessageListViewState<T> extends State<MessageListView<T>> {
   Widget _buildBottomLoadingIndicator() {
     return ListenableBuilder(
       listenable: Listenable.merge([
-        _controller.isLoadingInitial,
-        _controller.loadNewStatus,
+        _dataSource.isLoadingInitial,
+        _dataSource.loadNewStatus,
       ]),
       builder: (_, __) {
-        if (_controller.isLoadingInitial.value) {
+        if (_dataSource.isLoadingInitial.value) {
           return const SliverToBoxAdapter(child: SizedBox.shrink());
         }
         return SliverToBoxAdapter(
           child: BottomLoadingIndicator(
-            status: _controller.loadNewStatus.value,
+            status: _dataSource.loadNewStatus.value,
           ),
         );
       },

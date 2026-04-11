@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:message_list_view/message_list_view.dart';
 
 import 'capsule_button.dart';
-import 'im_message_list_controller.dart';
+import 'im_message_data_source.dart';
 import 'message_bubble.dart';
 import 'mock_message_service.dart';
 
@@ -16,17 +16,18 @@ class MessageListPage extends StatefulWidget {
 }
 
 class _MessageListPageState extends State<MessageListPage> {
-  final _controller = ImMessageListController(MockMessageService());
+  final _controller = MessageListController();
+  final _datasource = ImMessageDataSource();
 
   @override
   void initState() {
     super.initState();
-    _controller.loadMessage(startMsgId: widget.startMsgId);
+    _datasource.loadMessage(startMsgId: widget.startMsgId);
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _datasource.dispose();
     super.dispose();
   }
 
@@ -52,8 +53,9 @@ class _MessageListPageState extends State<MessageListPage> {
         children: [
           Expanded(
             child: MessageListView(
-              controller: _controller,
-              itemBuilder: (context, message) =>
+              _controller,
+              dataSource: _datasource,
+              itemBuilder: (context, message, index) =>
                   MessageBubble(message: message),
             ),
           ),
@@ -78,10 +80,10 @@ class _MessageListPageState extends State<MessageListPage> {
         bottom: 10 + MediaQuery.of(context).padding.bottom,
       ),
       child: ValueListenableBuilder<bool>(
-        valueListenable: _controller.isLoadingInitial,
+        valueListenable: _datasource.isLoadingInitial,
         builder: (_, isLoadingInitial, __) =>
             ValueListenableBuilder<LoadMoreStatus>(
-          valueListenable: _controller.loadNewStatus,
+          valueListenable: _datasource.loadNewStatus,
           builder: (_, loadNewStatus, __) => Row(
             children: [
               Expanded(
@@ -89,7 +91,7 @@ class _MessageListPageState extends State<MessageListPage> {
                   text: '收到新消息',
                   enabled: !isLoadingInitial &&
                       loadNewStatus != LoadMoreStatus.loading,
-                  onTap: _controller.addNewMessage,
+                  onTap: _datasource.addNewMessage,
                 ),
               ),
               const SizedBox(width: 12),
@@ -97,7 +99,7 @@ class _MessageListPageState extends State<MessageListPage> {
                 child: CapsuleButton(
                   text: '重置页面',
                   enabled: !isLoadingInitial,
-                  onTap: _controller.reset,
+                  onTap: _datasource.reset,
                 ),
               ),
             ],
