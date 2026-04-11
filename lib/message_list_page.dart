@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:message_list_view/message_list_view.dart';
 
 import 'capsule_button.dart';
-import 'message_list_view/load_more_status.dart';
-import 'message_list_view/message_list_controller.dart';
-import 'message_list_view/message_list_view.dart';
+import 'im_message_list_controller.dart';
+import 'message_bubble.dart';
 import 'mock_message_service.dart';
 
 class MessageListPage extends StatefulWidget {
@@ -16,17 +16,17 @@ class MessageListPage extends StatefulWidget {
 }
 
 class _MessageListPageState extends State<MessageListPage> {
-  final _messageListController = MessageListController(MockMessageService());
+  final _controller = ImMessageListController(MockMessageService());
 
   @override
   void initState() {
     super.initState();
-    _messageListController.loadMessage(startMsgId: widget.startMsgId);
+    _controller.loadMessage(startMsgId: widget.startMsgId);
   }
 
   @override
   void dispose() {
-    _messageListController.dispose();
+    _controller.dispose();
     super.dispose();
   }
 
@@ -52,7 +52,9 @@ class _MessageListPageState extends State<MessageListPage> {
         children: [
           Expanded(
             child: MessageListView(
-              controller: _messageListController,
+              controller: _controller,
+              itemBuilder: (context, message) =>
+                  MessageBubble(message: message),
             ),
           ),
           _buildBottomBar(),
@@ -76,10 +78,10 @@ class _MessageListPageState extends State<MessageListPage> {
         bottom: 10 + MediaQuery.of(context).padding.bottom,
       ),
       child: ValueListenableBuilder<bool>(
-        valueListenable: _messageListController.isLoadingInitial,
+        valueListenable: _controller.isLoadingInitial,
         builder: (_, isLoadingInitial, __) =>
             ValueListenableBuilder<LoadMoreStatus>(
-          valueListenable: _messageListController.loadNewStatus,
+          valueListenable: _controller.loadNewStatus,
           builder: (_, loadNewStatus, __) => Row(
             children: [
               Expanded(
@@ -87,7 +89,7 @@ class _MessageListPageState extends State<MessageListPage> {
                   text: '收到新消息',
                   enabled: !isLoadingInitial &&
                       loadNewStatus != LoadMoreStatus.loading,
-                  onTap: _messageListController.addNewMessage,
+                  onTap: _controller.addNewMessage,
                 ),
               ),
               const SizedBox(width: 12),
@@ -95,7 +97,7 @@ class _MessageListPageState extends State<MessageListPage> {
                 child: CapsuleButton(
                   text: '重置页面',
                   enabled: !isLoadingInitial,
-                  onTap: _messageListController.reset,
+                  onTap: _controller.reset,
                 ),
               ),
             ],

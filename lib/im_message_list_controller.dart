@@ -1,39 +1,18 @@
-import 'package:flutter/foundation.dart';
+import 'package:message_list_view/message_list_view.dart';
 
-import '../message.dart';
-import '../mock_message_service.dart';
-import 'load_more_status.dart';
+import 'message.dart';
+import 'mock_message_service.dart';
 
-/// 负责消息列表的数据加载与状态管理。
-/// 各状态字段为 [ValueNotifier]，视图可按需订阅单个字段的变化。
-class MessageListController {
+/// IM 场景的消息列表控制器，实现 [MessageListController] 抽象。
+class ImMessageListController extends MessageListController<Message> {
   MockMessageService _service;
 
-  MessageListController(this._service);
+  ImMessageListController(this._service);
 
-  // ───────────────────────────── 状态 ─────────────────────────────
-
-  /// 正方向消息（初始加载 + 新消息），按时间升序排列。
-  final ValueNotifier<List<Message>> messages = ValueNotifier([]);
-
-  /// 反方向消息（历史消息），按时间降序排列（最新在前，最旧在后）。
-  /// 在双向 ScrollView 中，index 0 紧邻 center，向上增长。
-  final ValueNotifier<List<Message>> historyMessages = ValueNotifier([]);
-
-  /// 是否正在进行首次加载。
-  final ValueNotifier<bool> isLoadingInitial = ValueNotifier(true);
-
-  /// 加载历史消息的状态。
-  final ValueNotifier<LoadMoreStatus> loadHistoryStatus =
-      ValueNotifier(LoadMoreStatus.idle);
-
-  /// 加载新消息的状态。
-  final ValueNotifier<LoadMoreStatus> loadNewStatus =
-      ValueNotifier(LoadMoreStatus.idle);
-
-  /// 首次加载完成后是否应滚动到底部（由 [loadMessage] 的 startMsgId 决定）。
-  bool get shouldScrollToBottom => _shouldScrollToBottom;
   bool _shouldScrollToBottom = true;
+
+  @override
+  bool get shouldScrollToBottom => _shouldScrollToBottom;
 
   // ───────────────────────────── 公开方法 ─────────────────────────────
 
@@ -52,7 +31,7 @@ class MessageListController {
     isLoadingInitial.value = false;
   }
 
-  /// 加载更多历史消息，追加到 [historyMessages] 末尾（向上增长）。
+  @override
   Future<void> loadMoreHistory() async {
     if (loadHistoryStatus.value != LoadMoreStatus.idle) return;
     // 最旧的消息：优先从 historyMessages 末尾取，否则从 messages 首条取
@@ -69,7 +48,7 @@ class MessageListController {
         list.isEmpty ? LoadMoreStatus.noMore : LoadMoreStatus.idle;
   }
 
-  /// 拉取新消息，追加到 [messages] 末尾。
+  @override
   Future<void> loadNewMessage() async {
     if (loadNewStatus.value != LoadMoreStatus.idle) return;
     final newestMsgId = messages.value.lastOrNull?.id;
@@ -99,14 +78,5 @@ class MessageListController {
     loadHistoryStatus.value = LoadMoreStatus.idle;
     loadNewStatus.value = LoadMoreStatus.idle;
     await loadMessage();
-  }
-
-  /// 释放资源。
-  void dispose() {
-    messages.dispose();
-    historyMessages.dispose();
-    isLoadingInitial.dispose();
-    loadHistoryStatus.dispose();
-    loadNewStatus.dispose();
   }
 }

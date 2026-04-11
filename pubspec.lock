@@ -131,6 +131,13 @@ packages:
       url: "https://pub.flutter-io.cn"
     source: hosted
     version: "0.11.1"
+  message_list_view:
+    dependency: "direct main"
+    description:
+      path: "packages/message_list_view"
+      relative: true
+    source: path
+    version: "0.0.1"
   meta:
     dependency: transitive
     description:

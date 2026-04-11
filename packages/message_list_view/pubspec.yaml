@@ -1,0 +1,11 @@
+name: message_list_view
+description: A reusable bidirectional message list view widget for Flutter.
+publish_to: 'none'
+version: 0.0.1
+
+environment:
+  sdk: ^3.6.2
+
+dependencies:
+  flutter:
+    sdk: flutter
