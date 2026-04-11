@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../message_bubble.dart';
-import '../message_list_controller.dart';
 import 'history_aware_scroll_physics.dart';
 import 'load_history_state_indicator.dart';
+import 'load_more_status.dart';
 import 'load_new_state_indicator.dart';
+import 'message_list_controller.dart';
 import 'scroll_to_bottom_button.dart';
 
 /// 消息列表视图，负责消息展示、滚动管理和加载触发。
@@ -12,13 +13,9 @@ import 'scroll_to_bottom_button.dart';
 class MessageListView extends StatefulWidget {
   final MessageListController controller;
 
-  /// 首次加载完成后是否滚动到底部，false 则停留在顶部。
-  final bool scrollToBottomOnLoad;
-
   const MessageListView({
     super.key,
     required this.controller,
-    this.scrollToBottomOnLoad = true,
   });
 
   @override
@@ -27,15 +24,6 @@ class MessageListView extends StatefulWidget {
 
 class _MessageListViewState extends State<MessageListView> {
   final _scrollController = ScrollController();
-
-  // 滚动 UI 状态
-  bool _showScrollToBottom = false;
-  int _unreadCount = 0;
-
-  // 控制器状态转换快照
-  bool _wasLoadingInitial = true;
-  bool _wasLoadingHistory = false;
-  int _previousMessageCount = 0;
 
   // HistoryAwareScrollPhysics 所需的补偿标记
   bool _needsHistoryCorrection = false;
@@ -75,82 +63,13 @@ class _MessageListViewState extends State<MessageListView> {
     super.dispose();
   }
 
-  void _addControllerListeners() {
-    _controller.isLoadingInitial.addListener(_onLoadingInitialChanged);
-    _controller.isLoadingHistory.addListener(_onLoadingHistoryChanged);
-    _controller.messages.addListener(_onMessagesChanged);
-    _controller.isLoadingNewMessage.addListener(_onStateChanged);
-    _controller.hasMoreHistory.addListener(_onStateChanged);
-  }
+  void _addControllerListeners() {}
 
-  void _removeControllerListeners(MessageListController c) {
-    c.isLoadingInitial.removeListener(_onLoadingInitialChanged);
-    c.isLoadingHistory.removeListener(_onLoadingHistoryChanged);
-    c.messages.removeListener(_onMessagesChanged);
-    c.isLoadingNewMessage.removeListener(_onStateChanged);
-    c.hasMoreHistory.removeListener(_onStateChanged);
-  }
+  void _removeControllerListeners(MessageListController c) {}
 
   // ───────────────────────────── 控制器变化响应 ─────────────────────────────
 
-  /// isLoadingInitial 变化时的回调。
-  void _onLoadingInitialChanged() {
-    final isLoading = _controller.isLoadingInitial.value;
-
-    if (isLoading) {
-      // 控制器重置 → 清空视图状态
-      _showScrollToBottom = false;
-      _unreadCount = 0;
-      _wasLoadingInitial = true;
-      _wasLoadingHistory = false;
-      _previousMessageCount = 0;
-      if (mounted) setState(() {});
-      return;
-    }
-
-    if (_wasLoadingInitial && !isLoading) {
-      // 首次加载完成 → 根据配置跳到底部或顶部
-      if (widget.scrollToBottomOnLoad) {
-        _scheduleScrollToBottom(animate: false);
-      }
-      _previousMessageCount = _controller.messages.value.length;
-    }
-
-    _wasLoadingInitial = isLoading;
-    if (mounted) setState(() {});
-  }
-
-  /// isLoadingHistory 变化时的回调。
-  void _onLoadingHistoryChanged() {
-    final isLoading = _controller.isLoadingHistory.value;
-
-    if (_wasLoadingHistory && !isLoading) {
-      // 历史加载完成 → 设置标记，布局阶段由 physics 自动补偿
-      _needsHistoryCorrection = true;
-      _previousMessageCount = _controller.messages.value.length;
-    }
-
-    _wasLoadingHistory = isLoading;
-    if (mounted) setState(() {});
-  }
-
-  /// messages 变化时的回调（新消息追加等场景）。
-  void _onMessagesChanged() {
-    final currentCount = _controller.messages.value.length;
-
-    // 排除首次加载和历史加载（由各自的回调处理）
-    if (!_controller.isLoadingInitial.value &&
-        !_controller.isLoadingHistory.value &&
-        currentCount > _previousMessageCount) {
-      _handleMessageAppended();
-    }
-
-    _previousMessageCount = currentCount;
-    if (mounted) setState(() {});
-  }
-
-  /// 其他状态变化（isLoadingNewMessage、hasMoreHistory）仅触发重建。
-  void _onStateChanged() {
+  void triggerRebuild() {
     if (mounted) setState(() {});
   }
 
@@ -169,17 +88,6 @@ class _MessageListViewState extends State<MessageListView> {
     });
   }
 
-  void _handleMessageAppended() {
-    final isAtBottom = _scrollController.hasClients &&
-        _scrollController.offset >=
-            _scrollController.position.maxScrollExtent - 100;
-    if (isAtBottom) {
-      _scheduleScrollToBottom();
-    } else {
-      _unreadCount++;
-    }
-  }
-
   // ───────────────────────────── 滚动事件 ─────────────────────────────
 
   void _onScroll() {
@@ -187,29 +95,21 @@ class _MessageListViewState extends State<MessageListView> {
 
     // 滚到顶部附近时拉取历史
     if (_scrollController.offset <= 80 &&
-        !_controller.isLoadingHistory.value &&
-        _controller.hasMoreHistory.value &&
+        _controller.loadHistoryStatus.value == LoadMoreStatus.idle &&
         !_controller.isLoadingInitial.value) {
       _controller.loadMoreHistory();
     }
 
-    // 更新"滚到底部"按钮
-    final isNearBottom = _scrollController.offset >=
-        _scrollController.position.maxScrollExtent - 100;
-    final shouldShow =
-        !isNearBottom && _controller.messages.value.isNotEmpty;
-
-    if (_showScrollToBottom != shouldShow ||
-        (isNearBottom && _unreadCount > 0)) {
-      setState(() {
-        _showScrollToBottom = shouldShow;
-        if (isNearBottom) _unreadCount = 0;
-      });
+    // 滚到底部附近时拉取新消息
+    final maxExtent = _scrollController.position.maxScrollExtent;
+    if (_scrollController.offset >= maxExtent - 80 &&
+        _controller.loadNewStatus.value == LoadMoreStatus.idle &&
+        !_controller.isLoadingInitial.value) {
+      _controller.loadNewMessage();
     }
   }
 
   void _scrollToBottom() {
-    setState(() => _unreadCount = 0);
     _scrollController.animateTo(
       _scrollController.position.maxScrollExtent,
       duration: const Duration(milliseconds: 400),
@@ -221,60 +121,86 @@ class _MessageListViewState extends State<MessageListView> {
 
   @override
   Widget build(BuildContext context) {
-    final messages = _controller.messages.value;
-
     return Stack(
       children: [
-        NotificationListener<OverscrollNotification>(
-          onNotification: (n) {
-            if (n.overscroll > 0 && !_controller.isLoadingNewMessage.value) {
-              _controller.loadNewMessage();
-            }
-            return false;
-          },
-          child: CustomScrollView(
-            controller: _scrollController,
-            physics: HistoryAwareScrollPhysics(
-              needsCorrection: _consumeHistoryCorrection,
-              parent: const BouncingScrollPhysics(
-                parent: AlwaysScrollableScrollPhysics(),
-              ),
-            ),
-            slivers: [
-              // 顶部：历史消息加载状态
-              SliverToBoxAdapter(
-                child: LoadHistoryStateIndicator(
-                  isLoading: _controller.isLoadingHistory.value,
-                ),
-              ),
-              // 中间：消息列表
-              SliverPadding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                sliver: SliverList.builder(
-                  itemCount: messages.length,
-                  itemBuilder: (context, index) =>
-                      MessageBubble(message: messages[index]),
-                ),
-              ),
-              // 底部：新消息加载状态
-              SliverToBoxAdapter(
-                child: LoadNewStateIndicator(
-                  isLoading: _controller.isLoadingNewMessage.value,
-                ),
-              ),
-            ],
-          ),
-        ),
-        if (_showScrollToBottom)
-          Positioned(
-            bottom: 12,
-            right: 12,
-            child: ScrollToBottomButton(
-              unreadCount: _unreadCount,
-              onTap: _scrollToBottom,
-            ),
-          ),
+        buildScrollView(),
+        _centerLoading(),
       ],
+    );
+  }
+
+  CustomScrollView buildScrollView() {
+    return CustomScrollView(
+      controller: _scrollController,
+      physics: HistoryAwareScrollPhysics(
+        needsCorrection: _consumeHistoryCorrection,
+        parent: const BouncingScrollPhysics(
+          parent: AlwaysScrollableScrollPhysics(),
+        ),
+      ),
+      slivers: [
+        // 顶部：历史消息加载状态
+        _topLoadingBar(),
+        // 中间：消息列表
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          sliver: _buildMessageList(),
+        ),
+        // 底部：新消息加载状态
+        _bottomLoadingBar(),
+      ],
+    );
+  }
+
+  Widget _centerLoading() {
+    return ValueListenableBuilder(
+        valueListenable: _controller.isLoadingInitial,
+        builder: (_, visible, __) {
+          return Visibility(
+            visible: visible,
+            child: Center(
+              child: CircularProgressIndicator(
+                color: Colors.grey[400],
+              ),
+            ),
+          );
+        });
+  }
+
+  ValueListenableBuilder<LoadMoreStatus> _topLoadingBar() {
+    return ValueListenableBuilder(
+        valueListenable: _controller.loadHistoryStatus,
+        builder: (_, state, __) {
+          return SliverToBoxAdapter(
+            child: LoadHistoryStateIndicator(
+              status: state,
+            ),
+          );
+        });
+  }
+
+  ValueListenableBuilder<LoadMoreStatus> _bottomLoadingBar() {
+    return ValueListenableBuilder(
+        valueListenable: _controller.loadNewStatus,
+        builder: (_, state, __) {
+          return SliverToBoxAdapter(
+            child: LoadNewStateIndicator(
+              status: state,
+            ),
+          );
+        });
+  }
+
+  Widget _buildMessageList() {
+    return ValueListenableBuilder(
+      valueListenable: _controller.messages,
+      builder: (_, messages, __) {
+        return SliverList.builder(
+          itemCount: messages.length,
+          itemBuilder: (context, index) =>
+              MessageBubble(message: messages[index]),
+        );
+      },
     );
   }
 }

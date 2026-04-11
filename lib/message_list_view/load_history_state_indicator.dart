@@ -1,41 +1,40 @@
 import 'package:flutter/material.dart';
 
-/// 历史消息加载状态指示器。
-/// [visible] 为 false 时不占空间。
-/// [isLoading] 为 true 时显示加载中，为 false 时显示无更多历史。
-/// 两种状态的整体高度保持一致。
-class LoadHistoryStateIndicator extends StatelessWidget {
-  final bool isLoading;
+import 'load_more_status.dart';
 
-  const LoadHistoryStateIndicator({super.key, required this.isLoading});
+/// 历史消息加载状态指示器，根据 [status] 显示三种 UI：
+/// - [LoadMoreStatus.idle]：提示文字"下拉加载更多消息"
+/// - [LoadMoreStatus.loading]：加载动画
+/// - [LoadMoreStatus.noMore]：提示文字"没有更多历史消息"
+class LoadHistoryStateIndicator extends StatelessWidget {
+  final LoadMoreStatus status;
+
+  const LoadHistoryStateIndicator({super.key, required this.status});
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
       height: 40,
       width: double.infinity,
-      child: Stack(
-        children: [
-          Center(
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              if (isLoading)
-                SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.grey[400],
-                  ),
-                ),
-              const SizedBox(width: 8),
-              if (!isLoading)
-                Text(
-                  '没有更多消息了',
-                  style: const TextStyle(color: Colors.grey, fontSize: 13),
-                )
-            ]),
-          )
-        ],
+      child: Center(
+        child: switch (status) {
+          LoadMoreStatus.loading => SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.grey[400],
+              ),
+            ),
+          LoadMoreStatus.idle => const Text(
+              '下拉加载更多消息',
+              style: TextStyle(color: Colors.grey, fontSize: 13),
+            ),
+          LoadMoreStatus.noMore => const Text(
+              '没有更多历史消息',
+              style: TextStyle(color: Colors.grey, fontSize: 13),
+            ),
+        },
       ),
     );
   }

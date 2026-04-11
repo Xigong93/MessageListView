@@ -1,7 +1,8 @@
 import 'package:flutter/foundation.dart';
 
-import 'message.dart';
-import 'mock_message_service.dart';
+import '../message.dart';
+import '../mock_message_service.dart';
+import 'load_more_status.dart';
 
 /// 负责消息列表的数据加载与状态管理。
 /// 各状态字段为 [ValueNotifier]，视图可按需订阅单个字段的变化。
@@ -18,47 +19,48 @@ class MessageListController {
   /// 是否正在进行首次加载。
   final ValueNotifier<bool> isLoadingInitial = ValueNotifier(true);
 
-  /// 是否正在加载历史消息。
-  final ValueNotifier<bool> isLoadingHistory = ValueNotifier(false);
+  /// 加载历史消息的状态。
+  final ValueNotifier<LoadMoreStatus> loadHistoryStatus =
+      ValueNotifier(LoadMoreStatus.idle);
 
-  /// 是否还有更多历史消息可加载。
-  final ValueNotifier<bool> hasMoreHistory = ValueNotifier(true);
-
-  /// 是否正在加载新消息。
-  final ValueNotifier<bool> isLoadingNewMessage = ValueNotifier(false);
+  /// 加载新消息的状态。
+  final ValueNotifier<LoadMoreStatus> loadNewStatus =
+      ValueNotifier(LoadMoreStatus.idle);
 
   // ───────────────────────────── 公开方法 ─────────────────────────────
 
   /// 首次加载消息，[startMsgId] 为展示的第一条消息 ID，为空时使用默认值。
   Future<void> loadMessage({int? startMsgId}) async {
-    final msgs = await _service.fetchInitialMessages(startMsgId: startMsgId);
-    messages.value = msgs;
+    isLoadingInitial.value = true;
+    final list = await _service.fetchInitialMessages(startMsgId: startMsgId);
+    messages.value = list;
     isLoadingInitial.value = false;
   }
 
   /// 加载更多历史消息，插入列表头部。
   Future<void> loadMoreHistory() async {
-    if (isLoadingHistory.value || !hasMoreHistory.value) return;
+    if (loadHistoryStatus.value != LoadMoreStatus.idle) return;
     final oldestMsgId = messages.value.firstOrNull?.id;
     if (oldestMsgId == null) return;
-    isLoadingHistory.value = true;
+    loadHistoryStatus.value = LoadMoreStatus.loading;
 
     final list = await _service.fetchHistoryMessages(oldestMsgId);
     messages.value = [...list, ...messages.value];
-    isLoadingHistory.value = false;
-    hasMoreHistory.value = list.isNotEmpty;
+    loadHistoryStatus.value =
+        list.isEmpty ? LoadMoreStatus.noMore : LoadMoreStatus.idle;
   }
 
   /// 拉取新消息，追加到列表末尾。
   Future<void> loadNewMessage() async {
-    if (isLoadingNewMessage.value) return;
+    if (loadNewStatus.value != LoadMoreStatus.idle) return;
     final newestMsgId = messages.value.lastOrNull?.id;
     if (newestMsgId == null) return;
-    isLoadingNewMessage.value = true;
+    loadNewStatus.value = LoadMoreStatus.loading;
 
     final list = await _service.fetchNewMessage(newestMsgId);
     messages.value = [...messages.value, ...list];
-    isLoadingNewMessage.value = false;
+    loadNewStatus.value =
+        list.isEmpty ? LoadMoreStatus.noMore : LoadMoreStatus.idle;
   }
 
   /// 同步追加一条新消息到列表末尾。
@@ -74,9 +76,8 @@ class MessageListController {
     _service = MockMessageService();
     messages.value = [];
     isLoadingInitial.value = true;
-    isLoadingHistory.value = false;
-    hasMoreHistory.value = true;
-    isLoadingNewMessage.value = false;
+    loadHistoryStatus.value = LoadMoreStatus.idle;
+    loadNewStatus.value = LoadMoreStatus.idle;
     await loadMessage();
   }
 
@@ -84,8 +85,7 @@ class MessageListController {
   void dispose() {
     messages.dispose();
     isLoadingInitial.dispose();
-    isLoadingHistory.dispose();
-    hasMoreHistory.dispose();
-    isLoadingNewMessage.dispose();
+    loadHistoryStatus.dispose();
+    loadNewStatus.dispose();
   }
 }

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
-import 'message_list_controller.dart';
+import 'capsule_button.dart';
+import 'message_list_view/load_more_status.dart';
+import 'message_list_view/message_list_controller.dart';
 import 'message_list_view/message_list_view.dart';
 import 'mock_message_service.dart';
 
@@ -14,18 +16,17 @@ class MessageListPage extends StatefulWidget {
 }
 
 class _MessageListPageState extends State<MessageListPage> {
-  late final MessageListController _controller;
+  final _messageListController = MessageListController(MockMessageService());
 
   @override
   void initState() {
     super.initState();
-    _controller = MessageListController(MockMessageService());
-    _controller.loadMessage(startMsgId: widget.startMsgId);
+    _messageListController.loadMessage(startMsgId: widget.startMsgId);
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _messageListController.dispose();
     super.dispose();
   }
 
@@ -50,18 +51,8 @@ class _MessageListPageState extends State<MessageListPage> {
       body: Column(
         children: [
           Expanded(
-            child: ValueListenableBuilder<bool>(
-              valueListenable: _controller.isLoadingInitial,
-              builder: (_, isLoadingInitial, __) => isLoadingInitial
-                  ? Center(
-                      child: CircularProgressIndicator(
-                        color: Colors.grey[400],
-                      ),
-                    )
-                  : MessageListView(
-                      controller: _controller,
-                      scrollToBottomOnLoad: widget.startMsgId == null,
-                    ),
+            child: MessageListView(
+              controller: _messageListController,
             ),
           ),
           _buildBottomBar(),
@@ -85,61 +76,29 @@ class _MessageListPageState extends State<MessageListPage> {
         bottom: 10 + MediaQuery.of(context).padding.bottom,
       ),
       child: ValueListenableBuilder<bool>(
-        valueListenable: _controller.isLoadingInitial,
-        builder: (_, isLoadingInitial, __) => ValueListenableBuilder<bool>(
-          valueListenable: _controller.isLoadingNewMessage,
-          builder: (_, isLoadingNewMessage, __) => Row(
+        valueListenable: _messageListController.isLoadingInitial,
+        builder: (_, isLoadingInitial, __) =>
+            ValueListenableBuilder<LoadMoreStatus>(
+          valueListenable: _messageListController.loadNewStatus,
+          builder: (_, loadNewStatus, __) => Row(
             children: [
               Expanded(
-                child: _CapsuleButton(
+                child: CapsuleButton(
                   text: '收到新消息',
-                  enabled: !isLoadingInitial && !isLoadingNewMessage,
-                  onTap: _controller.addNewMessage,
+                  enabled: !isLoadingInitial &&
+                      loadNewStatus != LoadMoreStatus.loading,
+                  onTap: _messageListController.addNewMessage,
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: _CapsuleButton(
+                child: CapsuleButton(
                   text: '重置页面',
                   enabled: !isLoadingInitial,
-                  onTap: _controller.reset,
+                  onTap: _messageListController.reset,
                 ),
               ),
             ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _CapsuleButton extends StatelessWidget {
-  final String text;
-  final bool enabled;
-  final VoidCallback onTap;
-
-  const _CapsuleButton({
-    required this.text,
-    required this.enabled,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: enabled ? onTap : null,
-      child: Container(
-        height: 40,
-        decoration: BoxDecoration(
-          color: enabled ? const Color(0xFF2196F3) : Colors.grey[300],
-          borderRadius: BorderRadius.circular(20),
-        ),
-        alignment: Alignment.center,
-        child: Text(
-          text,
-          style: TextStyle(
-            fontSize: 14,
-            color: enabled ? Colors.white : Colors.grey[500],
           ),
         ),
       ),
