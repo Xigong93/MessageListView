@@ -12,26 +12,26 @@ class MessageListPage extends StatefulWidget {
 }
 
 class _MessageListPageState extends State<MessageListPage> {
-  // 控制器：负责数据加载
-  late final MessageListController _controller;
-
-  // 视图专属：滚动控制 & 输入
+  late MessageListController _controller;
   final _scrollController = ScrollController();
-  final _inputController = TextEditingController();
-  final _inputFocusNode = FocusNode();
 
-  // 滚动 UI 状态（依赖 ScrollController，属于视图关注点）
+  // 滚动 UI 状态
   bool _showScrollToBottom = false;
   int _unreadCount = 0;
 
-  // 用于检测控制器状态转换的"前一帧快照"
+  // 控制器状态转换快照
   bool _wasLoadingInitial = true;
   bool _wasLoadingHistory = false;
   int _previousMessageCount = 0;
 
-  // 历史加载前记录的滚动位置，用于加载完成后还原
-  double _preHistoryOffset = 0;
-  double _preHistoryMaxExtent = 0;
+  // HistoryAwareScrollPhysics 所需的待补偿高度
+  double _pendingCorrection = 0;
+
+  double _getCorrection() {
+    final v = _pendingCorrection;
+    _pendingCorrection = 0;
+    return v;
+  }
 
   // ───────────────────────────── 生命周期 ─────────────────────────────
 
@@ -39,7 +39,6 @@ class _MessageListPageState extends State<MessageListPage> {
   void initState() {
     super.initState();
     _controller = MessageListController(MockMessageService());
-    // 先订阅控制器，再调 initialize，保证首次通知不会漏掉
     _controller.addListener(_onControllerChanged);
     _scrollController.addListener(_onScroll);
     _controller.initialize();
@@ -50,34 +49,33 @@ class _MessageListPageState extends State<MessageListPage> {
     _controller.removeListener(_onControllerChanged);
     _controller.dispose();
     _scrollController.dispose();
-    _inputController.dispose();
-    _inputFocusNode.dispose();
     super.dispose();
   }
 
   // ───────────────────────────── 控制器变化响应 ─────────────────────────────
 
-  /// 每次控制器 notifyListeners() 都会同步调用此方法（在 Widget 重建之前）。
-  /// 通过对比前后状态的转换，决定执行哪种滚动行为。
   void _onControllerChanged() {
     final c = _controller;
 
     if (_wasLoadingInitial && !c.isLoadingInitial) {
       // ① 首次加载完成 → 跳到底部
       _scheduleScrollToBottom(animate: false);
-    } else if (!_wasLoadingHistory && c.isLoadingHistory) {
-      // ② 历史加载开始 → 快照当前滚动位置
-      //    此时 Widget 尚未重建，maxScrollExtent 反映的是旧布局
-      _preHistoryOffset = _scrollController.offset;
-      _preHistoryMaxExtent = _scrollController.position.maxScrollExtent;
     } else if (_wasLoadingHistory && !c.isLoadingHistory) {
-      // ③ 历史加载完成 → 下一帧恢复位置，消除跳动
-      _scheduleHistoryScrollRestore();
+      // ② 历史加载完成 → 此时 Widget 尚未重建，maxScrollExtent 仍是旧值
+      //    捕获为局部变量传入闭包，下一帧计算 delta 并通过 physics 补偿
+      final preMaxExtent = _scrollController.position.maxScrollExtent;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_scrollController.hasClients) return;
+        final delta = _scrollController.position.maxScrollExtent - preMaxExtent;
+        if (delta > 0) {
+          _pendingCorrection = delta;
+          _scrollController.jumpTo(_scrollController.position.pixels + delta);
+        }
+      });
     } else if (!c.isLoadingInitial &&
         !c.isLoadingHistory &&
         c.messages.length > _previousMessageCount) {
-      // ④ 新消息追加（收到推送 or 自己发送）
-      //    此刻 maxScrollExtent 仍是旧值，可安全判断"是否在底部"
+      // ④ 新消息追加 → 在底部则跟随，否则累积未读
       _handleMessageAppended();
     }
 
@@ -85,7 +83,6 @@ class _MessageListPageState extends State<MessageListPage> {
     _wasLoadingHistory = c.isLoadingHistory;
     _previousMessageCount = c.messages.length;
 
-    // 触发视图层重建
     if (mounted) setState(() {});
   }
 
@@ -96,28 +93,12 @@ class _MessageListPageState extends State<MessageListPage> {
       if (!mounted || !_scrollController.hasClients) return;
       final target = _scrollController.position.maxScrollExtent;
       if (animate) {
-        _scrollController.animateTo(
-          target,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
+        _scrollController.animateTo(target,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOut);
       } else {
         _scrollController.jumpTo(target);
       }
-    });
-  }
-
-  void _scheduleHistoryScrollRestore() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_scrollController.hasClients) return;
-      // heightAdded = 新内容高度 − 旧内容高度（自然包含了 loading 指示器的影响）
-      final heightAdded =
-          _scrollController.position.maxScrollExtent - _preHistoryMaxExtent;
-      final target = (_preHistoryOffset + heightAdded).clamp(
-        0.0,
-        _scrollController.position.maxScrollExtent,
-      );
-      _scrollController.jumpTo(target);
     });
   }
 
@@ -125,11 +106,9 @@ class _MessageListPageState extends State<MessageListPage> {
     final isAtBottom = _scrollController.hasClients &&
         _scrollController.offset >=
             _scrollController.position.maxScrollExtent - 100;
-
     if (isAtBottom) {
       _scheduleScrollToBottom();
     } else {
-      // 用户正在查看历史，保持位置不动，仅增加未读计数
       _unreadCount++;
     }
   }
@@ -147,7 +126,7 @@ class _MessageListPageState extends State<MessageListPage> {
       _controller.loadMoreHistory();
     }
 
-    // 更新"滚到底部"按钮状态
+    // 更新"滚到底部"按钮
     final isNearBottom = _scrollController.offset >=
         _scrollController.position.maxScrollExtent - 100;
     final shouldShow = !isNearBottom && _controller.messages.isNotEmpty;
@@ -163,13 +142,6 @@ class _MessageListPageState extends State<MessageListPage> {
 
   // ───────────────────────────── 用户操作 ─────────────────────────────
 
-  void _sendMessage() {
-    final text = _inputController.text.trim();
-    if (text.isEmpty) return;
-    _inputController.clear();
-    _controller.sendMessage(text);
-  }
-
   void _scrollToBottom() {
     setState(() => _unreadCount = 0);
     _scrollController.animateTo(
@@ -179,22 +151,43 @@ class _MessageListPageState extends State<MessageListPage> {
     );
   }
 
+  void _resetPage() {
+    setState(() {
+      _showScrollToBottom = false;
+      _unreadCount = 0;
+      _wasLoadingInitial = true;
+      _wasLoadingHistory = false;
+      _previousMessageCount = 0;
+    });
+    _controller.reset();
+  }
+
   // ───────────────────────────── 列表构建辅助 ─────────────────────────────
 
   bool get _showTopIndicator =>
       _controller.isLoadingHistory || !_controller.hasMoreHistory;
 
+  bool get _showBottomIndicator => _controller.isLoadingNewMessage;
+
   int get _itemCount =>
-      _controller.messages.length + (_showTopIndicator ? 1 : 0);
+      _controller.messages.length +
+      (_showTopIndicator ? 1 : 0) +
+      (_showBottomIndicator ? 1 : 0);
 
   Widget _buildListItem(BuildContext context, int index) {
+    final topOffset = _showTopIndicator ? 1 : 0;
+
     if (_showTopIndicator && index == 0) {
       return _controller.isLoadingHistory
           ? const _TopLoadingIndicator()
           : const _NoMoreHistoryHint();
     }
-    final msgIndex = _showTopIndicator ? index - 1 : index;
-    return MessageBubble(message: _controller.messages[msgIndex]);
+
+    if (_showBottomIndicator && index == _itemCount - 1) {
+      return const _BottomLoadingIndicator();
+    }
+
+    return MessageBubble(message: _controller.messages[index - topOffset]);
   }
 
   // ───────────────────────────── UI ─────────────────────────────
@@ -210,12 +203,24 @@ class _MessageListPageState extends State<MessageListPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Alice', style: TextStyle(fontSize: 17)),
-            Text(
-              '在线',
-              style: TextStyle(fontSize: 12, color: Colors.white70),
-            ),
+            Text('在线',
+                style: TextStyle(fontSize: 12, color: Colors.white70)),
           ],
         ),
+        actions: [
+          IconButton(
+            tooltip: '收到新消息',
+            icon: const Icon(Icons.mark_chat_unread_outlined),
+            onPressed: _controller.isLoadingInitial || _controller.isLoadingNewMessage
+                ? null
+                : _controller.loadNewMessage,
+          ),
+          IconButton(
+            tooltip: '重置页面',
+            icon: const Icon(Icons.refresh),
+            onPressed: _controller.isLoadingInitial ? null : _resetPage,
+          ),
+        ],
       ),
       body: _controller.isLoadingInitial
           ? _buildInitialLoading()
@@ -237,82 +242,92 @@ class _MessageListPageState extends State<MessageListPage> {
   }
 
   Widget _buildBody() {
-    return Column(
+    return Stack(
       children: [
-        Expanded(
-          child: Stack(
-            children: [
-              ListView.builder(
-                controller: _scrollController,
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                itemCount: _itemCount,
-                itemBuilder: _buildListItem,
+        NotificationListener<OverscrollNotification>(
+          onNotification: (n) {
+            // 向下 overscroll（正值）时拉取新消息
+            if (n.overscroll > 0 && !_controller.isLoadingNewMessage) {
+              _controller.loadNewMessage();
+            }
+            return false;
+          },
+          child: ListView.builder(
+            controller: _scrollController,
+            physics: HistoryAwareScrollPhysics(
+              getCorrection: _getCorrection,
+              parent: const BouncingScrollPhysics(
+                parent: AlwaysScrollableScrollPhysics(),
               ),
-              if (_showScrollToBottom)
-                Positioned(
-                  bottom: 12,
-                  right: 12,
-                  child: _ScrollToBottomButton(
-                    unreadCount: _unreadCount,
-                    onTap: _scrollToBottom,
-                  ),
-                ),
-            ],
+            ),
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            itemCount: _itemCount,
+            itemBuilder: _buildListItem,
           ),
         ),
-        _buildInputBar(),
+        if (_showScrollToBottom)
+          Positioned(
+            bottom: 12,
+            right: 12,
+            child: _ScrollToBottomButton(
+              unreadCount: _unreadCount,
+              onTap: _scrollToBottom,
+            ),
+          ),
       ],
-    );
-  }
-
-  Widget _buildInputBar() {
-    return Container(
-      color: const Color(0xFFF5F5F5),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-      child: SafeArea(
-        top: false,
-        child: Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: _inputController,
-                focusNode: _inputFocusNode,
-                decoration: InputDecoration(
-                  hintText: '输入消息...',
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 10,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(24),
-                    borderSide: BorderSide.none,
-                  ),
-                  filled: true,
-                  fillColor: Colors.white,
-                ),
-                textInputAction: TextInputAction.send,
-                onSubmitted: (_) => _sendMessage(),
-                maxLines: null,
-              ),
-            ),
-            const SizedBox(width: 8),
-            IconButton(
-              onPressed: _sendMessage,
-              icon: const Icon(Icons.send_rounded),
-              style: IconButton.styleFrom(
-                backgroundColor: const Color(0xFF2196F3),
-                foregroundColor: Colors.white,
-                shape: const CircleBorder(),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
 
 // ───────────────────────────── 辅助小组件 ─────────────────────────────
+
+// ───────────────────────────── ScrollPhysics ─────────────────────────────
+
+/// 在内容顶部插入历史消息后，通过 [adjustPositionForNewDimensions] 自动补偿
+/// 滚动偏移，使已有内容保持视觉位置不变。
+///
+/// 工作原理：
+/// 1. 历史消息插入后，[postFrameCallback] 计算新增高度 delta，写入 [_pendingCorrection]
+///    并调用 [jumpTo(pixels + delta)] 完成主要补偿。
+/// 2. [adjustPositionForNewDimensions] 作为兜底：若下一次布局仍检测到内容增长
+///    且有待消费的 correction，则在布局阶段直接修正 pixels，避免任何闪烁。
+class HistoryAwareScrollPhysics extends ScrollPhysics {
+  final double Function() getCorrection;
+
+  const HistoryAwareScrollPhysics({
+    required this.getCorrection,
+    super.parent,
+  });
+
+  @override
+  HistoryAwareScrollPhysics applyTo(ScrollPhysics? ancestor) {
+    return HistoryAwareScrollPhysics(
+      getCorrection: getCorrection,
+      parent: buildParent(ancestor),
+    );
+  }
+
+  @override
+  double adjustPositionForNewDimensions({
+    required ScrollMetrics oldPosition,
+    required ScrollMetrics newPosition,
+    required bool isScrolling,
+    required double velocity,
+  }) {
+    final contentGrew =
+        newPosition.maxScrollExtent > oldPosition.maxScrollExtent;
+    if (contentGrew) {
+      final correction = getCorrection();
+      if (correction != 0) return newPosition.pixels + correction;
+    }
+    return super.adjustPositionForNewDimensions(
+      oldPosition: oldPosition,
+      newPosition: newPosition,
+      isScrolling: isScrolling,
+      velocity: velocity,
+    );
+  }
+}
 
 class _TopLoadingIndicator extends StatelessWidget {
   const _TopLoadingIndicator();
@@ -331,10 +346,8 @@ class _TopLoadingIndicator extends StatelessWidget {
               child: CircularProgressIndicator(strokeWidth: 2),
             ),
             SizedBox(width: 8),
-            Text(
-              '加载更多消息...',
-              style: TextStyle(color: Colors.grey, fontSize: 13),
-            ),
+            Text('加载更多消息...',
+                style: TextStyle(color: Colors.grey, fontSize: 13)),
           ],
         ),
       ),
@@ -350,9 +363,33 @@ class _NoMoreHistoryHint extends StatelessWidget {
     return const Padding(
       padding: EdgeInsets.symmetric(vertical: 12),
       child: Center(
-        child: Text(
-          '没有更多消息了',
-          style: TextStyle(color: Colors.grey, fontSize: 12),
+        child: Text('没有更多消息了',
+            style: TextStyle(color: Colors.grey, fontSize: 12)),
+      ),
+    );
+  }
+}
+
+class _BottomLoadingIndicator extends StatelessWidget {
+  const _BottomLoadingIndicator();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 16),
+      child: Center(
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            SizedBox(width: 8),
+            Text('正在获取新消息...',
+                style: TextStyle(color: Colors.grey, fontSize: 13)),
+          ],
         ),
       ),
     );
@@ -363,10 +400,8 @@ class _ScrollToBottomButton extends StatelessWidget {
   final int unreadCount;
   final VoidCallback onTap;
 
-  const _ScrollToBottomButton({
-    required this.unreadCount,
-    required this.onTap,
-  });
+  const _ScrollToBottomButton(
+      {required this.unreadCount, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -392,16 +427,13 @@ class _ScrollToBottomButton extends StatelessWidget {
             if (unreadCount > 0) ...[
               Text(
                 '$unreadCount 条新消息',
-                style:
-                    const TextStyle(fontSize: 13, color: Color(0xFF2196F3)),
+                style: const TextStyle(
+                    fontSize: 13, color: Color(0xFF2196F3)),
               ),
               const SizedBox(width: 4),
             ],
-            const Icon(
-              Icons.keyboard_arrow_down_rounded,
-              size: 20,
-              color: Color(0xFF2196F3),
-            ),
+            const Icon(Icons.keyboard_arrow_down_rounded,
+                size: 20, color: Color(0xFF2196F3)),
           ],
         ),
       ),

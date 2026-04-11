@@ -56,7 +56,7 @@ class MockMessageService {
   int _historyBatchCount = 0;
   DateTime _historyAnchorTime = DateTime.now().subtract(const Duration(hours: 1));
 
-  static const _maxHistoryBatches = 3;
+  static const _maxHistoryBatches = 10;
 
   Message _makeAliceMessage(DateTime time) {
     final content = _aliceLines[_aliceIdx % _aliceLines.length];
@@ -121,22 +121,9 @@ class MockMessageService {
     return (messages: messages, hasMore: hasMore);
   }
 
-  /// 新消息流：每 8 秒收到一条 Alice 的消息
-  Stream<Message> newMessageStream() {
-    return Stream.periodic(const Duration(seconds: 8), (_) {
-      return _makeAliceMessage(DateTime.now());
-    });
-  }
-
-  /// 创建一条自己发送的消息
-  Message createMyMessage(String content) {
-    return Message(
-      id: _nextId(),
-      content: content,
-      senderId: 'me',
-      senderName: '我',
-      isMe: true,
-      timestamp: DateTime.now(),
-    );
+  /// 拉取一条新消息：模拟 800ms 网络延迟
+  Future<Message> fetchNewMessage() async {
+    await Future.delayed(const Duration(milliseconds: 800));
+    return _makeAliceMessage(DateTime.now());
   }
 }
