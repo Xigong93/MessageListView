@@ -19,12 +19,9 @@ class _MessageListPageState extends State<MessageListPage> {
   @override
   void initState() {
     super.initState();
-    _controller = MessageListController(
-      MockMessageService(),
-      startMsgId: widget.startMsgId,
-    );
+    _controller = MessageListController(MockMessageService());
     _controller.addListener(_onChanged);
-    _controller.initialize();
+    _controller.loadMessage(startMsgId: widget.startMsgId);
   }
 
   @override

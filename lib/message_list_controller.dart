@@ -7,10 +7,8 @@ import 'mock_message_service.dart';
 /// 视图通过 [addListener] 订阅变化，并从只读属性中读取最新状态。
 class MessageListController extends ChangeNotifier {
   MockMessageService _service;
-  int? _startMsgId;
 
-  MessageListController(this._service, {int? startMsgId})
-      : _startMsgId = startMsgId;
+  MessageListController(this._service);
 
   // ───────────────────────────── 状态 ─────────────────────────────
 
@@ -20,21 +18,26 @@ class MessageListController extends ChangeNotifier {
   bool _hasMoreHistory = true;
   bool _isLoadingNewMessage = false;
 
+  /// 当前已加载的所有消息（不可变视图）。
   List<Message> get messages => List.unmodifiable(_messages);
 
+  /// 是否正在进行首次加载。
   bool get isLoadingInitial => _isLoadingInitial;
 
+  /// 是否正在加载历史消息。
   bool get isLoadingHistory => _isLoadingHistory;
 
+  /// 是否还有更多历史消息可加载。
   bool get hasMoreHistory => _hasMoreHistory;
 
+  /// 是否正在加载新消息。
   bool get isLoadingNewMessage => _isLoadingNewMessage;
 
   // ───────────────────────────── 公开方法 ─────────────────────────────
 
-  /// 首次加载。
-  Future<void> initialize() async {
-    final msgs = await _service.fetchInitialMessages(startMsgId: _startMsgId);
+  /// 首次加载消息，[startMsgId] 为展示的第一条消息 ID，为空时使用默认值。
+  Future<void> loadMessage({int? startMsgId}) async {
+    final msgs = await _service.fetchInitialMessages(startMsgId: startMsgId);
     _messages = msgs;
     _isLoadingInitial = false;
     notifyListeners();
@@ -69,6 +72,7 @@ class MessageListController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 同步追加一条新消息到列表末尾。
   void addNewMessage() {
     final newestMsgId = messages.lastOrNull?.id;
     if (newestMsgId == null) return;
@@ -85,8 +89,7 @@ class MessageListController extends ChangeNotifier {
     _isLoadingHistory = false;
     _hasMoreHistory = true;
     _isLoadingNewMessage = false;
-    _startMsgId = null;
     notifyListeners();
-    await initialize();
+    await loadMessage();
   }
 }

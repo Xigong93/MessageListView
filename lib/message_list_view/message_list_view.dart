@@ -90,8 +90,7 @@ class _MessageListViewState extends State<MessageListView> {
       final preMaxExtent = _scrollController.position.maxScrollExtent;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || !_scrollController.hasClients) return;
-        final delta =
-            _scrollController.position.maxScrollExtent - preMaxExtent;
+        final delta = _scrollController.position.maxScrollExtent - preMaxExtent;
         if (delta > 0) {
           _pendingCorrection = delta;
           _scrollController.jumpTo(_scrollController.position.pixels + delta);
@@ -119,8 +118,7 @@ class _MessageListViewState extends State<MessageListView> {
       final target = _scrollController.position.maxScrollExtent;
       if (animate) {
         _scrollController.animateTo(target,
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeOut);
+            duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
       } else {
         _scrollController.jumpTo(target);
       }
@@ -200,8 +198,7 @@ class _MessageListViewState extends State<MessageListView> {
               SliverToBoxAdapter(
                 child: LoadHistoryStateIndicator(
                   isLoading: _controller.isLoadingHistory,
-                  visible: _controller.isLoadingHistory ||
-                      !_controller.hasMoreHistory,
+                  visible: true,
                 ),
               ),
               // 中间：消息列表
