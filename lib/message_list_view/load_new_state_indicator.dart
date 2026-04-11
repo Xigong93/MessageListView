@@ -14,7 +14,7 @@ class LoadNewStateIndicator extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AnimatedSize(
-      duration: const Duration(milliseconds: 200),
+      duration: const Duration(milliseconds: 300),
       curve: Curves.easeOut,
       child: status == LoadMoreStatus.noMore
           ? const SizedBox(width: double.infinity, height: 0)

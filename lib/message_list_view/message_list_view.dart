@@ -131,15 +131,10 @@ class _MessageListViewState extends State<MessageListView> {
     return ValueListenableBuilder(
       valueListenable: _controller.historyMessages,
       builder: (_, historyMessages, __) {
-        return SliverPadding(
-          padding: historyMessages.isEmpty
-              ? EdgeInsets.zero
-              : const EdgeInsets.only(top: 8),
-          sliver: SliverList.builder(
-            itemCount: historyMessages.length,
-            itemBuilder: (context, index) =>
-                MessageBubble(message: historyMessages[index]),
-          ),
+        return SliverList.builder(
+          itemCount: historyMessages.length,
+          itemBuilder: (context, index) =>
+              MessageBubble(message: historyMessages[index]),
         );
       },
     );
@@ -151,15 +146,10 @@ class _MessageListViewState extends State<MessageListView> {
     return ValueListenableBuilder(
       valueListenable: _controller.messages,
       builder: (_, messages, __) {
-        return SliverPadding(
-          padding: messages.isEmpty
-              ? EdgeInsets.zero
-              : const EdgeInsets.only(bottom: 8),
-          sliver: SliverList.builder(
-            itemCount: messages.length,
-            itemBuilder: (context, index) =>
-                MessageBubble(message: messages[index]),
-          ),
+        return SliverList.builder(
+          itemCount: messages.length,
+          itemBuilder: (context, index) =>
+              MessageBubble(message: messages[index]),
         );
       },
     );
@@ -169,14 +159,8 @@ class _MessageListViewState extends State<MessageListView> {
     return ValueListenableBuilder(
       valueListenable: _controller.loadNewStatus,
       builder: (_, state, __) {
-        return SliverFillRemaining(
-          hasScrollBody: false,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              LoadNewStateIndicator(status: state),
-            ],
-          ),
+        return SliverToBoxAdapter(
+          child: LoadNewStateIndicator(status: state),
         );
       },
     );
