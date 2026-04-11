@@ -5,10 +5,11 @@ import 'load_history_state_indicator.dart';
 import 'load_more_status.dart';
 import 'load_new_state_indicator.dart';
 import 'message_list_controller.dart';
-import 'prepend_aware_scroll_view.dart';
 
 /// 消息列表视图，负责消息展示、滚动管理和加载触发。
-/// 页面只需传入 [MessageListController]，不处理列表相关的业务逻辑。
+/// 使用 [CustomScrollView] 的 center 机制实现双向滚动：
+/// - center 之前：历史消息（向上增长，不影响正方向滚动位置）
+/// - center 之后：当前消息 + 新消息（向下增长）
 class MessageListView extends StatefulWidget {
   final MessageListController controller;
 
@@ -23,6 +24,7 @@ class MessageListView extends StatefulWidget {
 
 class _MessageListViewState extends State<MessageListView> {
   final _scrollController = ScrollController();
+  final _centerKey = UniqueKey();
 
   MessageListController get _controller => widget.controller;
 
@@ -44,17 +46,17 @@ class _MessageListViewState extends State<MessageListView> {
 
   void _onScroll() {
     if (!_scrollController.hasClients) return;
+    final position = _scrollController.position;
 
-    // 滚到顶部附近时拉取历史
-    if (_scrollController.offset <= 80 &&
+    // 接近反方向顶端 → 加载更多历史
+    if (position.pixels - position.minScrollExtent <= 80 &&
         _controller.loadHistoryStatus.value == LoadMoreStatus.idle &&
         !_controller.isLoadingInitial.value) {
       _controller.loadMoreHistory();
     }
 
-    // 滚到底部附近时拉取新消息
-    final maxExtent = _scrollController.position.maxScrollExtent;
-    if (_scrollController.offset >= maxExtent - 80 &&
+    // 接近正方向底端 → 加载更多新消息
+    if (position.maxScrollExtent - position.pixels <= 80 &&
         _controller.loadNewStatus.value == LoadMoreStatus.idle &&
         !_controller.isLoadingInitial.value) {
       _controller.loadNewMessage();
@@ -74,16 +76,24 @@ class _MessageListViewState extends State<MessageListView> {
   }
 
   Widget _buildScrollView() {
-    return PrependAwareScrollView(
+    return CustomScrollView(
       controller: _scrollController,
-      prependNotifier: _controller.prependNotifier,
+      center: _centerKey,
+      anchor: 0.0,
       physics: const BouncingScrollPhysics(
         parent: AlwaysScrollableScrollPhysics(),
       ),
       slivers: [
-        _buildTopLoadingBar(),
+        // ← 反方向（向上增长）
+        _buildHistoryLoadingBar(),
+        _buildHistoryMessageList(),
+
+        // 锚点（offset = 0）
+        SliverToBoxAdapter(key: _centerKey, child: const SizedBox.shrink()),
+
+        // → 正方向（向下增长）
         _buildMessageList(),
-        _buildBottomLoadingBar(),
+        _buildNewLoadingBar(),
       ],
     );
   }
@@ -104,7 +114,9 @@ class _MessageListViewState extends State<MessageListView> {
     );
   }
 
-  Widget _buildTopLoadingBar() {
+  // ───────────── 反方向 slivers ─────────────
+
+  Widget _buildHistoryLoadingBar() {
     return ValueListenableBuilder(
       valueListenable: _controller.loadHistoryStatus,
       builder: (_, state, __) {
@@ -115,7 +127,45 @@ class _MessageListViewState extends State<MessageListView> {
     );
   }
 
-  Widget _buildBottomLoadingBar() {
+  Widget _buildHistoryMessageList() {
+    return ValueListenableBuilder(
+      valueListenable: _controller.historyMessages,
+      builder: (_, historyMessages, __) {
+        return SliverPadding(
+          padding: historyMessages.isEmpty
+              ? EdgeInsets.zero
+              : const EdgeInsets.only(top: 8),
+          sliver: SliverList.builder(
+            itemCount: historyMessages.length,
+            itemBuilder: (context, index) =>
+                MessageBubble(message: historyMessages[index]),
+          ),
+        );
+      },
+    );
+  }
+
+  // ───────────── 正方向 slivers ─────────────
+
+  Widget _buildMessageList() {
+    return ValueListenableBuilder(
+      valueListenable: _controller.messages,
+      builder: (_, messages, __) {
+        return SliverPadding(
+          padding: messages.isEmpty
+              ? EdgeInsets.zero
+              : const EdgeInsets.only(bottom: 8),
+          sliver: SliverList.builder(
+            itemCount: messages.length,
+            itemBuilder: (context, index) =>
+                MessageBubble(message: messages[index]),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildNewLoadingBar() {
     return ValueListenableBuilder(
       valueListenable: _controller.loadNewStatus,
       builder: (_, state, __) {
@@ -126,22 +176,6 @@ class _MessageListViewState extends State<MessageListView> {
             children: [
               LoadNewStateIndicator(status: state),
             ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildMessageList() {
-    return ValueListenableBuilder(
-      valueListenable: _controller.messages,
-      builder: (_, messages, __) {
-        return SliverPadding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          sliver: SliverList.builder(
-            itemCount: messages.length,
-            itemBuilder: (context, index) =>
-                MessageBubble(message: messages[index]),
           ),
         );
       },
