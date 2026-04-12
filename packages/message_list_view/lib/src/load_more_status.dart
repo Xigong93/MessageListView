@@ -8,4 +8,7 @@ enum LoadMoreStatus {
 
   /// 没有更多数据。
   noMore,
+
+  /// 加载失败。
+  error,
 }

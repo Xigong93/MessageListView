@@ -76,11 +76,12 @@ class _MessageListPageState extends State<MessageListPage> {
           ? const SizedBox.shrink()
           : ListenableBuilder(
               listenable: Listenable.merge([
-                controller.isLoadingInitial,
+                controller.initialLoadStatus,
                 controller.loadNewStatus,
               ]),
               builder: (_, __) {
-                final isLoadingInitial = controller.isLoadingInitial.value;
+                final isLoadingInitial = controller.initialLoadStatus.value ==
+                    InitialLoadStatus.loading;
                 final loadNewStatus = controller.loadNewStatus.value;
                 return Row(
                   children: [

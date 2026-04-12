@@ -6,8 +6,13 @@ import 'load_more_status.dart';
 /// 三种状态均显示 40px 高的指示器。
 class TopLoadingIndicator extends StatelessWidget {
   final LoadMoreStatus status;
+  final VoidCallback onRetry;
 
-  const TopLoadingIndicator({super.key, required this.status});
+  const TopLoadingIndicator({
+    super.key,
+    required this.status,
+    required this.onRetry,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -15,6 +20,7 @@ class TopLoadingIndicator extends StatelessWidget {
       status: status,
       idleText: '下拉加载更多消息',
       noMoreText: '没有更多历史消息',
+      onRetry: onRetry,
     );
   }
 }
@@ -23,8 +29,13 @@ class TopLoadingIndicator extends StatelessWidget {
 /// [LoadMoreStatus.noMore] 时通过 [AnimatedSize] 收缩至 0 高度。
 class BottomLoadingIndicator extends StatelessWidget {
   final LoadMoreStatus status;
+  final VoidCallback onRetry;
 
-  const BottomLoadingIndicator({super.key, required this.status});
+  const BottomLoadingIndicator({
+    super.key,
+    required this.status,
+    required this.onRetry,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -37,6 +48,7 @@ class BottomLoadingIndicator extends StatelessWidget {
               status: status,
               idleText: '上拉加载更多消息',
               noMoreText: '',
+              onRetry: onRetry,
             ),
     );
   }
@@ -50,11 +62,13 @@ class _LoadingIndicatorCell extends StatelessWidget {
   final LoadMoreStatus status;
   final String idleText;
   final String noMoreText;
+  final VoidCallback onRetry;
 
   const _LoadingIndicatorCell({
     required this.status,
     required this.idleText,
     required this.noMoreText,
+    required this.onRetry,
   });
 
   @override
@@ -67,6 +81,7 @@ class _LoadingIndicatorCell extends StatelessWidget {
           LoadMoreStatus.loading => _buildLoading(),
           LoadMoreStatus.idle => Text(idleText, style: _textStyle),
           LoadMoreStatus.noMore => Text(noMoreText, style: _textStyle),
+          LoadMoreStatus.error => _buildError(),
         },
       ),
     );
@@ -79,6 +94,16 @@ class _LoadingIndicatorCell extends StatelessWidget {
       child: CircularProgressIndicator(
         strokeWidth: 2,
         color: Colors.grey[400],
+      ),
+    );
+  }
+
+  Widget _buildError() {
+    return GestureDetector(
+      onTap: onRetry,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 12),
+        child: const Text('加载失败，点击重试', style: _textStyle),
       ),
     );
   }

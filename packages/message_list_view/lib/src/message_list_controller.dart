@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 
+import 'initial_load_status.dart';
 import 'load_more_status.dart';
 import 'message_provider.dart';
 
@@ -18,8 +19,9 @@ class MessageListController<T> {
   /// 反方向列表项（历史），按时间降序排列（最新在前，最旧在后）。
   final ValueNotifier<List<T>> historyMessages = ValueNotifier([]);
 
-  /// 是否正在进行首次加载。
-  final ValueNotifier<bool> isLoadingInitial = ValueNotifier(true);
+  /// 首次加载的状态。
+  final ValueNotifier<InitialLoadStatus> initialLoadStatus =
+      ValueNotifier(InitialLoadStatus.loading);
 
   /// 加载历史消息的状态。
   final ValueNotifier<LoadMoreStatus> loadHistoryStatus =
@@ -40,42 +42,56 @@ class MessageListController<T> {
   Future<void> loadMessage() async {
     loadHistoryStatus.value = LoadMoreStatus.idle;
     loadNewStatus.value = LoadMoreStatus.idle;
-    isLoadingInitial.value = true;
-    final result = await _provider.fetchInitial();
-    messages.value = result.messages;
-    historyMessages.value = [];
-    loadNewStatus.value =
-        result.hasMoreNew ? LoadMoreStatus.idle : LoadMoreStatus.noMore;
-    isLoadingInitial.value = false;
-    // hasMoreNew 为 false 意味着已加载最新消息，滚到底部
-    if (!result.hasMoreNew) scrollToBottom(anim: false);
+    initialLoadStatus.value = InitialLoadStatus.loading;
+    try {
+      final result = await _provider.fetchInitial();
+      messages.value = result.messages;
+      historyMessages.value = [];
+      loadNewStatus.value =
+          result.hasMoreNew ? LoadMoreStatus.idle : LoadMoreStatus.noMore;
+      initialLoadStatus.value = InitialLoadStatus.success;
+      // hasMoreNew 为 false 意味着已加载最新消息，滚到底部
+      if (!result.hasMoreNew) scrollToBottom(anim: false);
+    } catch (_) {
+      initialLoadStatus.value = InitialLoadStatus.error;
+    }
   }
 
   /// 加载更多历史数据（向上方向）。由视图在滚动接近顶部时调用。
   Future<void> loadMoreHistory() async {
-    if (loadHistoryStatus.value != LoadMoreStatus.idle) return;
+    if (loadHistoryStatus.value == LoadMoreStatus.loading) return;
+    if (loadHistoryStatus.value == LoadMoreStatus.noMore) return;
     final oldestItem = historyMessages.value.isNotEmpty
         ? historyMessages.value.last
         : messages.value.firstOrNull;
     if (oldestItem == null) return;
     loadHistoryStatus.value = LoadMoreStatus.loading;
-    final list = await _provider.fetchHistory(oldestItem);
-    // provider 返回升序列表，反转为降序后追加到历史列表末尾
-    historyMessages.value = [...historyMessages.value, ...list.reversed];
-    loadHistoryStatus.value =
-        list.isEmpty ? LoadMoreStatus.noMore : LoadMoreStatus.idle;
+    try {
+      final list = await _provider.fetchHistory(oldestItem);
+      // provider 返回升序列表，反转为降序后追加到历史列表末尾
+      historyMessages.value = [...historyMessages.value, ...list.reversed];
+      loadHistoryStatus.value =
+          list.isEmpty ? LoadMoreStatus.noMore : LoadMoreStatus.idle;
+    } catch (_) {
+      loadHistoryStatus.value = LoadMoreStatus.error;
+    }
   }
 
   /// 加载更多新数据（向下方向）。由视图在滚动接近底部时调用。
   Future<void> loadNewMessage() async {
-    if (loadNewStatus.value != LoadMoreStatus.idle) return;
+    if (loadNewStatus.value == LoadMoreStatus.loading) return;
+    if (loadNewStatus.value == LoadMoreStatus.noMore) return;
     final newestItem = messages.value.lastOrNull;
     if (newestItem == null) return;
     loadNewStatus.value = LoadMoreStatus.loading;
-    final list = await _provider.fetchNew(newestItem);
-    messages.value = [...messages.value, ...list];
-    loadNewStatus.value =
-        list.isEmpty ? LoadMoreStatus.noMore : LoadMoreStatus.idle;
+    try {
+      final list = await _provider.fetchNew(newestItem);
+      messages.value = [...messages.value, ...list];
+      loadNewStatus.value =
+          list.isEmpty ? LoadMoreStatus.noMore : LoadMoreStatus.idle;
+    } catch (_) {
+      loadNewStatus.value = LoadMoreStatus.error;
+    }
   }
 
   /// 追加消息到正方向列表末尾。用于实时推送或 demo 模拟收到新消息。
@@ -102,7 +118,8 @@ class MessageListController<T> {
   Future<void> scrollToBottom({bool anim = true}) =>
       _scrollTo(() => scrollController.position.maxScrollExtent, anim: anim);
 
-  Future<void> _scrollTo(double Function() getTarget, {required bool anim}) async {
+  Future<void> _scrollTo(double Function() getTarget,
+      {required bool anim}) async {
     if (!scrollController.hasClients) return;
     await WidgetsBinding.instance.endOfFrame;
     final target = getTarget();
@@ -129,7 +146,7 @@ class MessageListController<T> {
   void dispose() {
     messages.dispose();
     historyMessages.dispose();
-    isLoadingInitial.dispose();
+    initialLoadStatus.dispose();
     loadHistoryStatus.dispose();
     loadNewStatus.dispose();
     scrollController.dispose();
