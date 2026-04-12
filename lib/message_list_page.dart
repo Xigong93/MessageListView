@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_keyboard_visibility/flutter_keyboard_visibility.dart';
 import 'package:message_list_view/message_list_view.dart';
 
 import 'capsule_button.dart';
-import 'im_message_provider.dart';
-import 'message.dart';
-import 'message_bubble.dart';
+import 'message_content_view.dart';
 
 class MessageListPage extends StatefulWidget {
   final int? startMsgId;
@@ -17,25 +14,13 @@ class MessageListPage extends StatefulWidget {
 }
 
 class _MessageListPageState extends State<MessageListPage> {
-  late final _provider = ImMessageProvider(startMsgId: widget.startMsgId);
-  late final _controller = MessageListController<Message>(_provider);
-
-  @override
-  void initState() {
-    super.initState();
-    _controller.loadMessage();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
+  final _contentKey = GlobalKey<MessageContentViewState>();
 
   void _onReceiveNewMessage() {
-    final id = _controller.messages.value.lastOrNull?.id;
+    final state = _contentKey.currentState!;
+    final id = state.controller.messages.value.lastOrNull?.id;
     if (id == null) return;
-    _controller.appendMessages([_provider.createMessage(id)]);
+    state.controller.appendMessages([state.provider.createMessage(id)]);
   }
 
   @override
@@ -56,56 +41,24 @@ class _MessageListPageState extends State<MessageListPage> {
           child: Divider(height: 0.5, thickness: 0.5, color: Color(0xFFDDDDDD)),
         ),
       ),
-      body: KeyboardVisibilityBuilder(
-        builder: (context, isKeyboardVisible) {
-          if (isKeyboardVisible) {
-            if (mounted) _controller.scrollToBottom(anim: false);
-          }
-          return Column(
-            children: [
-              Expanded(
-                child: MessageListView<Message>(
-                  _controller,
-                  itemBuilder: (context, message, index) =>
-                      MessageBubble(message: message),
-                ),
-              ),
-              _buildInputBar(),
-              _buildBottomBar(),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildInputBar() {
-    return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(
-          top: BorderSide(color: Color(0xFFDDDDDD), width: 0.5),
-        ),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: TextField(
-        decoration: InputDecoration(
-          hintText: '输入消息...',
-          hintStyle: const TextStyle(color: Colors.grey, fontSize: 15),
-          filled: true,
-          fillColor: const Color(0xFFF5F5F5),
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(20),
-            borderSide: BorderSide.none,
+      body: Column(
+        children: [
+          Expanded(
+            child: MessageContentView(
+              key: _contentKey,
+              startMsgId: widget.startMsgId,
+            ),
           ),
-        ),
+          _buildBottomBar(),
+        ],
       ),
     );
   }
 
   Widget _buildBottomBar() {
+    final state = _contentKey.currentState;
+    final controller = state?.controller;
+
     return Container(
       decoration: const BoxDecoration(
         color: Colors.white,
@@ -119,36 +72,38 @@ class _MessageListPageState extends State<MessageListPage> {
         top: 10,
         bottom: 10 + MediaQuery.of(context).padding.bottom,
       ),
-      child: ListenableBuilder(
-        listenable: Listenable.merge([
-          _controller.isLoadingInitial,
-          _controller.loadNewStatus,
-        ]),
-        builder: (_, __) {
-          final isLoadingInitial = _controller.isLoadingInitial.value;
-          final loadNewStatus = _controller.loadNewStatus.value;
-          return Row(
-            children: [
-              Expanded(
-                child: CapsuleButton(
-                  text: '收到新消息',
-                  enabled: !isLoadingInitial &&
-                      loadNewStatus != LoadMoreStatus.loading,
-                  onTap: _onReceiveNewMessage,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: CapsuleButton(
-                  text: '重置页面',
-                  enabled: !isLoadingInitial,
-                  onTap: () => _controller.reload(),
-                ),
-              ),
-            ],
-          );
-        },
-      ),
+      child: controller == null
+          ? const SizedBox.shrink()
+          : ListenableBuilder(
+              listenable: Listenable.merge([
+                controller.isLoadingInitial,
+                controller.loadNewStatus,
+              ]),
+              builder: (_, __) {
+                final isLoadingInitial = controller.isLoadingInitial.value;
+                final loadNewStatus = controller.loadNewStatus.value;
+                return Row(
+                  children: [
+                    Expanded(
+                      child: CapsuleButton(
+                        text: '收到新消息',
+                        enabled: !isLoadingInitial &&
+                            loadNewStatus != LoadMoreStatus.loading,
+                        onTap: _onReceiveNewMessage,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: CapsuleButton(
+                        text: '重置页面',
+                        enabled: !isLoadingInitial,
+                        onTap: () => controller.reload(),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
     );
   }
 }
