@@ -15,6 +15,21 @@ class MessageListPage extends StatefulWidget {
 
 class _MessageListPageState extends State<MessageListPage> {
   final _contentKey = GlobalKey<MessageContentViewState>();
+  bool _simulateError = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // 第一帧渲染后 _contentKey.currentState 才可用，触发一次重建以显示底栏按钮
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  void _onSimulateErrorChanged(bool value) {
+    setState(() => _simulateError = value);
+    _contentKey.currentState?.provider.shouldFail = value;
+  }
 
   void _onReceiveNewMessage() {
     final state = _contentKey.currentState!;
@@ -72,9 +87,17 @@ class _MessageListPageState extends State<MessageListPage> {
         top: 10,
         bottom: 10 + MediaQuery.of(context).padding.bottom,
       ),
-      child: controller == null
-          ? const SizedBox.shrink()
-          : ListenableBuilder(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              const Text('模拟加载失败', style: TextStyle(fontSize: 14)),
+              const Spacer(),
+              Switch(value: _simulateError, onChanged: _onSimulateErrorChanged),
+            ],
+          ),
+          if (controller != null) ListenableBuilder(
               listenable: Listenable.merge([
                 controller.initialLoadStatus,
                 controller.loadNewStatus,
@@ -105,6 +128,8 @@ class _MessageListPageState extends State<MessageListPage> {
                 );
               },
             ),
+        ],
+      ),
     );
   }
 }

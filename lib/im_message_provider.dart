@@ -11,10 +11,21 @@ class ImMessageProvider extends MessageProvider<Message> {
   final _service = MockMessageService();
   int? startMsgId;
 
+  /// 为 true 时所有 fetch 方法均抛出异常，用于模拟加载失败。
+  bool shouldFail = false;
+
   ImMessageProvider({this.startMsgId});
+
+  Future<void> _checkFail() async {
+    if (shouldFail) {
+      await Future.delayed(Duration(milliseconds: 400));
+      throw Exception('模拟加载失败');
+    }
+  }
 
   @override
   Future<InitialResult<Message>> fetchInitial() async {
+    await _checkFail();
     final list = await _service.fetchInitialMessages(startMsgId: startMsgId);
     return InitialResult(
       messages: list,
@@ -24,12 +35,16 @@ class ImMessageProvider extends MessageProvider<Message> {
   }
 
   @override
-  Future<List<Message>> fetchHistory(Message oldestItem) =>
-      _service.fetchHistoryMessages(oldestItem.id);
+  Future<List<Message>> fetchHistory(Message oldestItem) async {
+    await _checkFail();
+    return _service.fetchHistoryMessages(oldestItem.id);
+  }
 
   @override
-  Future<List<Message>> fetchNew(Message newestItem) =>
-      _service.fetchNewMessage(newestItem.id);
+  Future<List<Message>> fetchNew(Message newestItem) async {
+    await _checkFail();
+    return _service.fetchNewMessage(newestItem.id);
+  }
 
   /// demo 特有：同步生成一条紧随 [newestId] 之后的新消息。
   Message createMessage(int newestId) => _service.newMessage(newestId);
