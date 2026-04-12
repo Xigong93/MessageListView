@@ -47,7 +47,6 @@ class MessageListController<T> {
     loadNewStatus.value =
         result.hasMoreNew ? LoadMoreStatus.idle : LoadMoreStatus.noMore;
     isLoadingInitial.value = false;
-    await WidgetsBinding.instance.endOfFrame;
     // hasMoreNew 为 false 意味着已加载最新消息，滚到底部
     if (!result.hasMoreNew) scrollToBottom(anim: false);
   }
@@ -94,35 +93,26 @@ class MessageListController<T> {
   // ───────────────────────────── 滚动 ─────────────────────────────
 
   /// 滚动到顶部。
-  Future<void> scrollToTop({bool anim = true}) async {
-    if (!scrollController.hasClients) return;
-    await WidgetsBinding.instance.endOfFrame;
-    final target = scrollController.position.minScrollExtent;
-    if (anim) {
-      await _animateTo(target);
-    } else {
-      scrollController.jumpTo(target);
-    }
-  }
+  Future<void> scrollToTop({bool anim = true}) =>
+      _scrollTo(() => scrollController.position.minScrollExtent, anim: anim);
 
   /// 滚动到底部。
-  Future<void> scrollToBottom({bool anim = true}) async {
+  Future<void> scrollToBottom({bool anim = true}) =>
+      _scrollTo(() => scrollController.position.maxScrollExtent, anim: anim);
+
+  Future<void> _scrollTo(double Function() getTarget, {required bool anim}) async {
     if (!scrollController.hasClients) return;
     await WidgetsBinding.instance.endOfFrame;
-    final target = scrollController.position.maxScrollExtent;
+    final target = getTarget();
     if (anim) {
-      await _animateTo(target);
+      await scrollController.animateTo(
+        target,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
     } else {
       scrollController.jumpTo(target);
     }
-  }
-
-  Future<void> _animateTo(double target) async {
-    await scrollController.animateTo(
-      target,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOut,
-    );
   }
 
   /// 列表当前是否处于底部。
