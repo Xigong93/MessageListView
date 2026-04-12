@@ -9,7 +9,7 @@ class MockMessageService {
   Message _makeMessage(int id) {
     return Message(
       id: id,
-      content: '第$id条消息',
+      content: '第${id + 1}条消息',
     );
   }
 
