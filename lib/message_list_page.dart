@@ -19,6 +19,8 @@ class _MessageListPageState extends State<MessageListPage> {
   late final _provider = ImMessageProvider(startMsgId: widget.startMsgId);
   late final _controller = MessageListController<Message>(_provider);
 
+  double _prevKeyboardHeight = 0;
+
   @override
   void initState() {
     super.initState();
@@ -29,6 +31,20 @@ class _MessageListPageState extends State<MessageListPage> {
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final bottom = MediaQuery.viewInsetsOf(context).bottom;
+    if (bottom > _prevKeyboardHeight) {
+      // 键盘动画过程中 bottom 持续增大，每帧布局更新后都滚到底部，
+      // 确保动画最后一帧位置正确。
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _controller.scrollToBottom(anim: false);
+      });
+    }
+    _prevKeyboardHeight = bottom;
   }
 
   void _onReceiveNewMessage() {
@@ -64,8 +80,35 @@ class _MessageListPageState extends State<MessageListPage> {
                   MessageBubble(message: message),
             ),
           ),
+          _buildInputBar(),
           _buildBottomBar(),
         ],
+      ),
+    );
+  }
+
+  Widget _buildInputBar() {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(
+          top: BorderSide(color: Color(0xFFDDDDDD), width: 0.5),
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: TextField(
+        decoration: InputDecoration(
+          hintText: '输入消息...',
+          hintStyle: const TextStyle(color: Colors.grey, fontSize: 15),
+          filled: true,
+          fillColor: const Color(0xFFF5F5F5),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(20),
+            borderSide: BorderSide.none,
+          ),
+        ),
       ),
     );
   }
