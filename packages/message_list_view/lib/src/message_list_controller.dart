@@ -93,10 +93,12 @@ class MessageListController<T> {
   // ───────────────────────────── 滚动 ─────────────────────────────
 
   /// 滚动到顶部。
+  /// 无需等待布局完成，内部已处理
   Future<void> scrollToTop({bool anim = true}) =>
       _scrollTo(() => scrollController.position.minScrollExtent, anim: anim);
 
   /// 滚动到底部。
+  /// 无需等待布局完成，内部已处理
   Future<void> scrollToBottom({bool anim = true}) =>
       _scrollTo(() => scrollController.position.maxScrollExtent, anim: anim);
 

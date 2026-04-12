@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_keyboard_visibility/flutter_keyboard_visibility.dart';
 import 'package:message_list_view/message_list_view.dart';
 
 import 'capsule_button.dart';
@@ -19,8 +20,6 @@ class _MessageListPageState extends State<MessageListPage> {
   late final _provider = ImMessageProvider(startMsgId: widget.startMsgId);
   late final _controller = MessageListController<Message>(_provider);
 
-  double _prevKeyboardHeight = 0;
-
   @override
   void initState() {
     super.initState();
@@ -31,20 +30,6 @@ class _MessageListPageState extends State<MessageListPage> {
   void dispose() {
     _controller.dispose();
     super.dispose();
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final bottom = MediaQuery.viewInsetsOf(context).bottom;
-    if (bottom > _prevKeyboardHeight) {
-      // 键盘动画过程中 bottom 持续增大，每帧布局更新后都滚到底部，
-      // 确保动画最后一帧位置正确。
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _controller.scrollToBottom(anim: false);
-      });
-    }
-    _prevKeyboardHeight = bottom;
   }
 
   void _onReceiveNewMessage() {
@@ -71,18 +56,25 @@ class _MessageListPageState extends State<MessageListPage> {
           child: Divider(height: 0.5, thickness: 0.5, color: Color(0xFFDDDDDD)),
         ),
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: MessageListView<Message>(
-              _controller,
-              itemBuilder: (context, message, index) =>
-                  MessageBubble(message: message),
-            ),
-          ),
-          _buildInputBar(),
-          _buildBottomBar(),
-        ],
+      body: KeyboardVisibilityBuilder(
+        builder: (context, isKeyboardVisible) {
+          if (isKeyboardVisible) {
+            if (mounted) _controller.scrollToBottom(anim: false);
+          }
+          return Column(
+            children: [
+              Expanded(
+                child: MessageListView<Message>(
+                  _controller,
+                  itemBuilder: (context, message, index) =>
+                      MessageBubble(message: message),
+                ),
+              ),
+              _buildInputBar(),
+              _buildBottomBar(),
+            ],
+          );
+        },
       ),
     );
   }
