@@ -16,6 +16,7 @@ class MessageListPage extends StatefulWidget {
 class _MessageListPageState extends State<MessageListPage> {
   final _contentKey = GlobalKey<MessageContentViewState>();
   bool _simulateError = false;
+  bool _showAnnouncement = false;
 
   @override
   void initState() {
@@ -29,6 +30,17 @@ class _MessageListPageState extends State<MessageListPage> {
   void _onSimulateErrorChanged(bool value) {
     setState(() => _simulateError = value);
     _contentKey.currentState?.provider.shouldFail = value;
+  }
+
+  void _onAnnouncementChanged(bool value) {
+    final controller = _contentKey.currentState?.controller;
+    final wasAtBottom = controller?.atBottom ?? false;
+    setState(() => _showAnnouncement = value);
+    if (wasAtBottom) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        controller?.scrollToBottom(anim: false);
+      });
+    }
   }
 
   void _onReceiveNewMessage() {
@@ -58,6 +70,7 @@ class _MessageListPageState extends State<MessageListPage> {
       ),
       body: Column(
         children: [
+          if (_showAnnouncement) _buildAnnouncementBanner(),
           Expanded(
             child: MessageContentView(
               key: _contentKey,
@@ -65,6 +78,26 @@ class _MessageListPageState extends State<MessageListPage> {
             ),
           ),
           _buildBottomBar(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAnnouncementBanner() {
+    return Container(
+      width: double.infinity,
+      color: const Color(0xFFFFF8E1),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: const Row(
+        children: [
+          Icon(Icons.campaign_outlined, size: 18, color: Color(0xFFE65100)),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              '群公告：欢迎加入本群，请遵守群规，文明交流，禁止发布广告和违规内容。',
+              style: TextStyle(fontSize: 13, color: Color(0xFF5D4037)),
+            ),
+          ),
         ],
       ),
     );
@@ -95,6 +128,15 @@ class _MessageListPageState extends State<MessageListPage> {
               const Text('模拟加载失败', style: TextStyle(fontSize: 14)),
               const Spacer(),
               Switch(value: _simulateError, onChanged: _onSimulateErrorChanged),
+            ],
+          ),
+          Row(
+            children: [
+              const Text('显示群公告', style: TextStyle(fontSize: 14)),
+              const Spacer(),
+              Switch(
+                  value: _showAnnouncement,
+                  onChanged: _onAnnouncementChanged),
             ],
           ),
           if (controller != null) ListenableBuilder(
