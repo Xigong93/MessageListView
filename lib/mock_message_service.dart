@@ -7,9 +7,20 @@ class MockMessageService {
   static const _newestId = 100;
 
   Message _makeMessage(int id) {
+    // text 50%, image/video/voice 各约 16.7%
+    const types = [
+      MessageType.text,
+      MessageType.text,
+      MessageType.text,
+      MessageType.image,
+      MessageType.video,
+      MessageType.voice,
+    ];
+    final type = types[id % types.length];
     return Message(
       id: id,
       content: '第${id + 1}条消息',
+      type: type,
     );
   }
 
