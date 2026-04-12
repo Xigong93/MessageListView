@@ -101,18 +101,24 @@ class MessageContentViewState extends State<MessageContentView> {
         return Column(
           children: [
             Expanded(
-              child: Stack(
-                children: [
-                  MessageListView<Message>(
-                    controller,
-                    itemBuilder: (context, message, index) => KeyedSubtree(
-                      key: GlobalObjectKey(message.id),
-                      child: MessageBubble(message: message),
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: isKeyboardVisible
+                    ? () => FocusManager.instance.primaryFocus?.unfocus()
+                    : null,
+                child: Stack(
+                  children: [
+                    MessageListView<Message>(
+                      controller,
+                      itemBuilder: (context, message, index) => KeyedSubtree(
+                        key: GlobalObjectKey(message.id),
+                        child: MessageBubble(message: message),
+                      ),
                     ),
-                  ),
-                  _buildScrollToBottomButton(),
-                  _buildScrollToLastReadButton(),
-                ],
+                    _buildScrollToBottomButton(),
+                    _buildScrollToLastReadButton(),
+                  ],
+                ),
               ),
             ),
             _buildInputBar(),

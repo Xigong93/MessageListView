@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:message_list_view/message_list_view.dart';
 
+import 'announcement_banner.dart';
 import 'capsule_button.dart';
 import 'message_content_view.dart';
 
@@ -32,13 +33,29 @@ class _MessageListPageState extends State<MessageListPage> {
     _contentKey.currentState?.provider.shouldFail = value;
   }
 
+  static const _announcementAnimDuration = Duration(milliseconds: 300);
+
   void _onAnnouncementChanged(bool value) {
     final controller = _contentKey.currentState?.controller;
     final wasAtBottom = controller?.atBottom ?? false;
     setState(() => _showAnnouncement = value);
     if (wasAtBottom) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        controller?.scrollToBottom(anim: false);
+        _stickToBottomDuring(_announcementAnimDuration);
+      });
+    }
+  }
+
+  /// 在动画期间每帧将列表固定在底部，解决视口高度渐变导致的位置漂移。
+  void _stickToBottomDuring(Duration remaining) {
+    final scrollController =
+        _contentKey.currentState?.controller.scrollController;
+    if (scrollController == null || !scrollController.hasClients) return;
+    scrollController.jumpTo(scrollController.position.maxScrollExtent);
+    if (remaining > Duration.zero) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _stickToBottomDuring(remaining - const Duration(milliseconds: 16));
       });
     }
   }
@@ -70,7 +87,7 @@ class _MessageListPageState extends State<MessageListPage> {
       ),
       body: Column(
         children: [
-          if (_showAnnouncement) _buildAnnouncementBanner(),
+          _buildAnnouncementBanner(),
           Expanded(
             child: MessageContentView(
               key: _contentKey,
@@ -84,21 +101,20 @@ class _MessageListPageState extends State<MessageListPage> {
   }
 
   Widget _buildAnnouncementBanner() {
-    return Container(
-      width: double.infinity,
-      color: const Color(0xFFFFF8E1),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: const Row(
-        children: [
-          Icon(Icons.campaign_outlined, size: 18, color: Color(0xFFE65100)),
-          SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              '群公告：欢迎加入本群，请遵守群规，文明交流，禁止发布广告和违规内容。',
-              style: TextStyle(fontSize: 13, color: Color(0xFF5D4037)),
-            ),
+    return ClipRect(
+      child: AnimatedAlign(
+        alignment: Alignment.topCenter,
+        heightFactor: _showAnnouncement ? 1.0 : 0.0,
+        duration: _announcementAnimDuration,
+        curve: Curves.easeInOut,
+        child: AnimatedOpacity(
+          opacity: _showAnnouncement ? 1.0 : 0.0,
+          duration: _announcementAnimDuration,
+          curve: Curves.easeInOut,
+          child: const AnnouncementBanner(
+            text: '群公告：欢迎加入本群，请遵守群规，文明交流，禁止发布广告和违规内容。',
           ),
-        ],
+        ),
       ),
     );
   }
