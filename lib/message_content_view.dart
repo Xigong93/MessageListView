@@ -5,6 +5,7 @@ import 'package:message_list_view/message_list_view.dart';
 import 'im_message_provider.dart';
 import 'message.dart';
 import 'message_bubble.dart';
+import 'scroll_to_bottom_button.dart';
 
 /// 封装消息列表的完整逻辑：数据加载、列表展示、键盘弹出自动滚底。
 ///
@@ -23,16 +24,48 @@ class MessageContentViewState extends State<MessageContentView> {
   late final provider = ImMessageProvider(startMsgId: widget.startMsgId);
   late final controller = MessageListController<Message>(provider);
 
+  /// 不在底部时收到的新消息计数。
+  final ValueNotifier<int> _unreadCount = ValueNotifier(0);
+
+  /// 当前列表是否在底部。
+  final ValueNotifier<bool> _isAtBottom = ValueNotifier(true);
+
   @override
   void initState() {
     super.initState();
     controller.loadMessage();
+    controller.scrollController.addListener(_onScrollChanged);
   }
 
   @override
   void dispose() {
+    controller.scrollController.removeListener(_onScrollChanged);
+    _unreadCount.dispose();
+    _isAtBottom.dispose();
     controller.dispose();
     super.dispose();
+  }
+
+  void _onScrollChanged() {
+    final atBottom = controller.atBottom;
+    _isAtBottom.value = atBottom;
+    if (atBottom) _unreadCount.value = 0;
+  }
+
+  /// 追加新消息。在底部时自动滚动到底部，否则仅追加不滚动。
+  void appendMessages(List<Message> items) {
+    final wasAtBottom = controller.atBottom;
+    controller.appendMessages(items);
+    if (wasAtBottom) {
+      controller.scrollToBottom(anim: true);
+    } else {
+      _unreadCount.value += items.length;
+    }
+  }
+
+  void _scrollToBottomAndClearUnread() {
+    controller.scrollToBottom(anim: true);
+    _unreadCount.value = 0;
   }
 
   @override
@@ -47,14 +80,41 @@ class MessageContentViewState extends State<MessageContentView> {
         return Column(
           children: [
             Expanded(
-              child: MessageListView<Message>(
-                controller,
-                itemBuilder: (context, message, index) =>
-                    MessageBubble(message: message),
+              child: Stack(
+                children: [
+                  MessageListView<Message>(
+                    controller,
+                    itemBuilder: (context, message, index) =>
+                        MessageBubble(message: message),
+                  ),
+                  _buildScrollToBottomButton(),
+                ],
               ),
             ),
             _buildInputBar(),
           ],
+        );
+      },
+    );
+  }
+
+  Widget _buildScrollToBottomButton() {
+    return ValueListenableBuilder<bool>(
+      valueListenable: _isAtBottom,
+      builder: (_, isAtBottom, __) {
+        if (isAtBottom) return const SizedBox.shrink();
+        return Positioned(
+          right: 16,
+          bottom: 16,
+          child: ValueListenableBuilder<int>(
+            valueListenable: _unreadCount,
+            builder: (_, unread, __) {
+              return ScrollToBottomButton(
+                unreadCount: unread,
+                onTap: _scrollToBottomAndClearUnread,
+              );
+            },
+          ),
         );
       },
     );

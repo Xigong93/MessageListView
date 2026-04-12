@@ -20,7 +20,7 @@ class _MessageListPageState extends State<MessageListPage> {
     final state = _contentKey.currentState!;
     final id = state.controller.messages.value.lastOrNull?.id;
     if (id == null) return;
-    state.controller.appendMessages([state.provider.createMessage(id)]);
+    state.appendMessages([state.provider.createMessage(id)]);
   }
 
   @override
