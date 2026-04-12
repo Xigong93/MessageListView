@@ -23,7 +23,10 @@ class MessageContentView extends StatefulWidget {
 
 class MessageContentViewState extends State<MessageContentView> {
   late final provider = ImMessageProvider(startMsgId: widget.startMsgId);
-  late final controller = MessageListController<Message>(provider);
+  late final controller = MessageListController<Message>(
+    provider,
+    onError: (e, s, op) => debugPrint('[MessageList][$op] $e\n$s'),
+  );
 
   /// 不在底部时收到的新消息计数。
   final ValueNotifier<int> _unreadCount = ValueNotifier(0);

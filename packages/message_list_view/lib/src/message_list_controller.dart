@@ -4,11 +4,26 @@ import 'initial_load_status.dart';
 import 'load_more_status.dart';
 import 'message_provider.dart';
 
+/// 加载异常的处理回调。
+///
+/// - [error]：捕获到的异常对象。
+/// - [stack]：对应的堆栈信息。
+/// - [operation]：发生异常的操作名称（`loadMessage` / `loadMoreHistory` / `loadNewMessage`）。
+typedef MessageErrorHandler = void Function(
+  Object error,
+  StackTrace stack,
+  String operation,
+);
+
 /// 消息列表的统一控制器，持有全部状态、协调加载逻辑，并管理 [ScrollController]。
 ///
 /// 外部通过此对象完成数据加载和滚动控制；[MessageProvider] 只负责纯数据获取。
+///
+/// 可通过 [onError] 将加载异常转发到业务日志系统（Sentry、Crashlytics 等）。
+/// 未传时回退到 [FlutterError.reportError]。
 class MessageListController<T> {
   final MessageProvider<T> _provider;
+  final MessageErrorHandler? onError;
   final scrollController = ScrollController();
 
   // ───────────────────────────── 状态 ─────────────────────────────
@@ -31,7 +46,22 @@ class MessageListController<T> {
   final ValueNotifier<LoadMoreStatus> loadNewStatus =
       ValueNotifier(LoadMoreStatus.idle);
 
-  MessageListController(this._provider);
+  MessageListController(this._provider, {this.onError});
+
+  // ───────────────────────────── 错误上报 ─────────────────────────────
+
+  void _reportError(Object e, StackTrace s, String operation) {
+    if (onError != null) {
+      onError!(e, s, operation);
+    } else {
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: e,
+        stack: s,
+        library: 'message_list_view',
+        context: ErrorDescription(operation),
+      ));
+    }
+  }
 
   // ───────────────────────────── 加载协调 ─────────────────────────────
 
@@ -52,7 +82,8 @@ class MessageListController<T> {
       initialLoadStatus.value = InitialLoadStatus.success;
       // hasMoreNew 为 false 意味着已加载最新消息，滚到底部
       if (!result.hasMoreNew) scrollToBottom(anim: false);
-    } catch (_) {
+    } catch (e, s) {
+      _reportError(e, s, 'loadMessage');
       initialLoadStatus.value = InitialLoadStatus.error;
     }
   }
@@ -72,7 +103,8 @@ class MessageListController<T> {
       historyMessages.value = [...historyMessages.value, ...list.reversed];
       loadHistoryStatus.value =
           list.isEmpty ? LoadMoreStatus.noMore : LoadMoreStatus.idle;
-    } catch (_) {
+    } catch (e, s) {
+      _reportError(e, s, 'loadMoreHistory');
       loadHistoryStatus.value = LoadMoreStatus.error;
     }
   }
@@ -89,7 +121,8 @@ class MessageListController<T> {
       messages.value = [...messages.value, ...list];
       loadNewStatus.value =
           list.isEmpty ? LoadMoreStatus.noMore : LoadMoreStatus.idle;
-    } catch (_) {
+    } catch (e, s) {
+      _reportError(e, s, 'loadNewMessage');
       loadNewStatus.value = LoadMoreStatus.error;
     }
   }
