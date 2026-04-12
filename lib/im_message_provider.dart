@@ -9,17 +9,17 @@ import 'mock_message_service.dart';
 /// [MessageListController] 统一处理。
 class ImMessageProvider extends MessageProvider<Message> {
   final _service = MockMessageService();
-  final int? _startMsgId;
+  int? startMsgId;
 
-  ImMessageProvider({int? startMsgId}) : _startMsgId = startMsgId;
+  ImMessageProvider({this.startMsgId});
 
   @override
   Future<InitialResult<Message>> fetchInitial() async {
-    final list = await _service.fetchInitialMessages(startMsgId: _startMsgId);
+    final list = await _service.fetchInitialMessages(startMsgId: startMsgId);
     return InitialResult(
       messages: list,
       // 加载最新消息时不存在更新方向的数据；从历史位置加载时可能有
-      hasMoreNew: _startMsgId != null,
+      hasMoreNew: startMsgId != null,
     );
   }
 

@@ -6,6 +6,7 @@ import 'im_message_provider.dart';
 import 'message.dart';
 import 'message_bubble.dart';
 import 'scroll_to_bottom_button.dart';
+import 'scroll_to_last_read_button.dart';
 
 /// 封装消息列表的完整逻辑：数据加载、列表展示、键盘弹出自动滚底。
 ///
@@ -30,6 +31,11 @@ class MessageContentViewState extends State<MessageContentView> {
   /// 当前列表是否在底部。
   final ValueNotifier<bool> _isAtBottom = ValueNotifier(true);
 
+  /// 是否显示"上次阅读位置"按钮。
+  final ValueNotifier<bool> _showLastRead = ValueNotifier(true);
+
+  static const int _lastReadMessageId = 60;
+
   @override
   void initState() {
     super.initState();
@@ -42,6 +48,7 @@ class MessageContentViewState extends State<MessageContentView> {
     controller.scrollController.removeListener(_onScrollChanged);
     _unreadCount.dispose();
     _isAtBottom.dispose();
+    _showLastRead.dispose();
     controller.dispose();
     super.dispose();
   }
@@ -68,6 +75,17 @@ class MessageContentViewState extends State<MessageContentView> {
     _unreadCount.value = 0;
   }
 
+  /// 滚动到指定消息。先估算偏移量跳转，再用 ensureVisible 精确定位。
+  void _scrollToMessage(int messageId) {
+    provider.startMsgId = messageId;
+    controller.reload();
+  }
+
+  int? _indexWhere(List<Message> list, int messageId) {
+    final i = list.indexWhere((m) => m.id == messageId);
+    return i >= 0 ? i : null;
+  }
+
   @override
   Widget build(BuildContext context) {
     return KeyboardVisibilityBuilder(
@@ -84,10 +102,13 @@ class MessageContentViewState extends State<MessageContentView> {
                 children: [
                   MessageListView<Message>(
                     controller,
-                    itemBuilder: (context, message, index) =>
-                        MessageBubble(message: message),
+                    itemBuilder: (context, message, index) => KeyedSubtree(
+                      key: GlobalObjectKey(message.id),
+                      child: MessageBubble(message: message),
+                    ),
                   ),
                   _buildScrollToBottomButton(),
+                  _buildScrollToLastReadButton(),
                 ],
               ),
             ),
@@ -113,6 +134,25 @@ class MessageContentViewState extends State<MessageContentView> {
                 unreadCount: unread,
                 onTap: _scrollToBottomAndClearUnread,
               );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildScrollToLastReadButton() {
+    return ValueListenableBuilder<bool>(
+      valueListenable: _showLastRead,
+      builder: (_, show, __) {
+        if (!show) return const SizedBox.shrink();
+        return Positioned(
+          right: 16,
+          top: 16,
+          child: ScrollToLastReadButton(
+            onTap: () {
+              _showLastRead.value = false;
+              _scrollToMessage(_lastReadMessageId);
             },
           ),
         );
