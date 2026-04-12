@@ -7,30 +7,29 @@ class AnnouncementBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: const Color(0xFFFFF8E1),
-          borderRadius: BorderRadius.circular(8),
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(
+          bottom: BorderSide(color: Color(0xFFE5E5E5), width: 0.5),
         ),
-        child: Row(
-          children: [
-            const Icon(Icons.campaign_outlined,
-                size: 16, color: Color(0xFFE65100)),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                text,
-                style:
-                    const TextStyle(fontSize: 13, color: Color(0xFF5D4037)),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Row(
+        children: [
+          const Icon(Icons.campaign, size: 18, color: Color(0xFFFF9800)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(fontSize: 13, color: Color(0xFF333333)),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-          ],
-        ),
+          ),
+          const SizedBox(width: 8),
+          const Icon(Icons.chevron_right, size: 18, color: Color(0xFFBBBBBB)),
+        ],
       ),
     );
   }
