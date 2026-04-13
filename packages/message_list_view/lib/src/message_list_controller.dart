@@ -132,6 +132,30 @@ class MessageListController<T> {
     messages.value = [...messages.value, ...items];
   }
 
+  /// 重连后从最新消息开始拉取新消息，返回获取到的列表（空表示断线期间无新消息）。
+  ///
+  /// 若当前正在加载新消息，直接返回空列表。
+  /// 拉到数据后会将 [loadNewStatus] 重置为 [LoadMoreStatus.idle]，
+  /// 允许后续继续向下滚动加载。
+  Future<List<T>> reconnectAndFetch() async {
+    if (loadNewStatus.value == LoadMoreStatus.loading) return [];
+    final newestItem = messages.value.lastOrNull;
+    if (newestItem == null) return [];
+    // 重置，以防之前已到达末尾（noMore）
+    loadNewStatus.value = LoadMoreStatus.idle;
+    try {
+      final list = await _provider.fetchNew(newestItem);
+      if (list.isNotEmpty) {
+        messages.value = [...messages.value, ...list];
+        // 保持 idle，允许继续向下加载更多
+      }
+      return list;
+    } catch (e, s) {
+      _reportError(e, s, 'reconnect');
+      return [];
+    }
+  }
+
   /// 重置并重新加载，原子操作（等同于清空数据后调用 [loadMessage]）。
   Future<void> reload() async {
     messages.value = [];

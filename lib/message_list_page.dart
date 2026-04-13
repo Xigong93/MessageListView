@@ -7,8 +7,13 @@ import 'message_content_view.dart';
 
 class MessageListPage extends StatefulWidget {
   final int? startMsgId;
+  final bool showLastReadButton;
 
-  const MessageListPage({super.key, this.startMsgId});
+  const MessageListPage({
+    super.key,
+    this.startMsgId,
+    this.showLastReadButton = false,
+  });
 
   @override
   State<MessageListPage> createState() => _MessageListPageState();
@@ -92,6 +97,7 @@ class _MessageListPageState extends State<MessageListPage> {
             child: MessageContentView(
               key: _contentKey,
               startMsgId: widget.startMsgId,
+              showLastReadButton: widget.showLastReadButton,
             ),
           ),
           _buildBottomBar(),
@@ -159,27 +165,42 @@ class _MessageListPageState extends State<MessageListPage> {
               listenable: Listenable.merge([
                 controller.initialLoadStatus,
                 controller.loadNewStatus,
+                state!.isReconnecting,
               ]),
               builder: (_, __) {
                 final isLoadingInitial = controller.initialLoadStatus.value ==
                     InitialLoadStatus.loading;
                 final loadNewStatus = controller.loadNewStatus.value;
-                return Row(
+                final isReconnecting = state.isReconnecting.value;
+                return Column(
                   children: [
-                    Expanded(
-                      child: CapsuleButton(
-                        text: '收到新消息',
-                        enabled: !isLoadingInitial &&
-                            loadNewStatus != LoadMoreStatus.loading,
-                        onTap: _onReceiveNewMessage,
-                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: CapsuleButton(
+                            text: '收到新消息',
+                            enabled: !isLoadingInitial &&
+                                loadNewStatus != LoadMoreStatus.loading,
+                            onTap: _onReceiveNewMessage,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: CapsuleButton(
+                            text: '重置页面',
+                            enabled: !isLoadingInitial,
+                            onTap: () => controller.reload(),
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
                       child: CapsuleButton(
-                        text: '重置页面',
-                        enabled: !isLoadingInitial,
-                        onTap: () => controller.reload(),
+                        text: isReconnecting ? '重连中...' : '模拟重连',
+                        enabled: !isLoadingInitial && !isReconnecting,
+                        onTap: () => _contentKey.currentState?.reconnect(),
                       ),
                     ),
                   ],

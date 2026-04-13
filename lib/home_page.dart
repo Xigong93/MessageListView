@@ -16,9 +16,11 @@ class HomePage extends StatelessWidget {
       body: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          spacing: 16,
           children: [
-            _buildButton(context, '消息页面', null),
-            const SizedBox(height: 16),
+            _buildButton(context, '消息页面', null, showLastReadButton: false),
+            _buildButton(context, '消息页面（有上次浏览）', null,
+                showLastReadButton: true),
             _buildButton(context, '历史消息页面', 60),
           ],
         ),
@@ -26,9 +28,14 @@ class HomePage extends StatelessWidget {
     );
   }
 
-  Widget _buildButton(BuildContext context, String title, int? startMsgId) {
+  Widget _buildButton(
+    BuildContext context,
+    String title,
+    int? startMsgId, {
+    bool showLastReadButton = false,
+  }) {
     return SizedBox(
-      width: 200,
+      width: 240,
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFF2196F3),
@@ -41,7 +48,10 @@ class HomePage extends StatelessWidget {
         onPressed: () {
           Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (_) => MessageListPage(startMsgId: startMsgId),
+              builder: (_) => MessageListPage(
+                startMsgId: startMsgId,
+                showLastReadButton: showLastReadButton,
+              ),
             ),
           );
         },

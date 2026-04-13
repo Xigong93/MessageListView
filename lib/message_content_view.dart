@@ -14,8 +14,13 @@ import 'scroll_to_last_read_button.dart';
 /// （如模拟收消息、重置等）。
 class MessageContentView extends StatefulWidget {
   final int? startMsgId;
+  final bool showLastReadButton;
 
-  const MessageContentView({super.key, this.startMsgId});
+  const MessageContentView({
+    super.key,
+    this.startMsgId,
+    this.showLastReadButton = true,
+  });
 
   @override
   State<MessageContentView> createState() => MessageContentViewState();
@@ -35,7 +40,11 @@ class MessageContentViewState extends State<MessageContentView> {
   final ValueNotifier<bool> _isAtBottom = ValueNotifier(true);
 
   /// 是否显示"上次阅读位置"按钮。
-  final ValueNotifier<bool> _showLastRead = ValueNotifier(true);
+  late final ValueNotifier<bool> _showLastRead =
+      ValueNotifier(widget.showLastReadButton);
+
+  /// 重连拉取是否正在进行中。
+  final ValueNotifier<bool> isReconnecting = ValueNotifier(false);
 
   static const int _lastReadMessageId = 60;
 
@@ -44,16 +53,29 @@ class MessageContentViewState extends State<MessageContentView> {
     super.initState();
     controller.loadMessage();
     controller.scrollController.addListener(_onScrollChanged);
+    controller.initialLoadStatus.addListener(_onInitialLoadStatusChanged);
   }
 
   @override
   void dispose() {
+    controller.initialLoadStatus.removeListener(_onInitialLoadStatusChanged);
     controller.scrollController.removeListener(_onScrollChanged);
     _unreadCount.dispose();
     _isAtBottom.dispose();
     _showLastRead.dispose();
+    isReconnecting.dispose();
     controller.dispose();
     super.dispose();
+  }
+
+  void _onInitialLoadStatusChanged() {
+    if (controller.initialLoadStatus.value == InitialLoadStatus.success) {
+      // 初始加载完成后，等布局稳定再同步一次底部状态，
+      // 避免历史模式下按钮需要手动滑动才出现。
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _onScrollChanged();
+      });
+    }
   }
 
   void _onScrollChanged() {
@@ -70,12 +92,45 @@ class MessageContentViewState extends State<MessageContentView> {
       controller.scrollToBottom(anim: true);
     } else {
       _unreadCount.value += items.length;
+      // 列表追加后布局变化，重新同步底部状态以确保按钮正确显示。
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _onScrollChanged();
+      });
     }
   }
 
   void _scrollToBottomAndClearUnread() {
     controller.scrollToBottom(anim: true);
     _unreadCount.value = 0;
+  }
+
+  /// 模拟 IM 通道短线重连：从当前最新消息开始拉取，若有新消息则追加展示。
+  ///
+  /// - 无新消息：弹出 SnackBar 提示。
+  /// - 有新消息且在底部：自动滚到底部。
+  /// - 有新消息但不在底部：累加未读数，显示"N 条新消息"按钮。
+  Future<void> reconnect() async {
+    if (isReconnecting.value) return;
+    isReconnecting.value = true;
+    final wasAtBottom = controller.atBottom;
+    try {
+      final newMessages = await controller.reconnectAndFetch();
+      if (!mounted) return;
+      if (newMessages.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('断线期间无新消息'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      } else if (wasAtBottom) {
+        controller.scrollToBottom(anim: true);
+      } else {
+        _unreadCount.value += newMessages.length;
+      }
+    } finally {
+      if (mounted) isReconnecting.value = false;
+    }
   }
 
   /// 滚动到指定消息。先估算偏移量跳转，再用 ensureVisible 精确定位。
