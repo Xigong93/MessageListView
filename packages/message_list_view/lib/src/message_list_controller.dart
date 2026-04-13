@@ -132,6 +132,40 @@ class MessageListController<T> {
     messages.value = [...messages.value, ...items];
   }
 
+  /// 删除消息
+  void deleteMessage(T t) {
+    final msgIdx = messages.value.indexOf(t);
+    if (msgIdx != -1) {
+      final list = [...messages.value];
+      list.removeAt(msgIdx);
+      messages.value = list;
+      return;
+    }
+    final histIdx = historyMessages.value.indexOf(t);
+    if (histIdx != -1) {
+      final list = [...historyMessages.value];
+      list.removeAt(histIdx);
+      historyMessages.value = list;
+    }
+  }
+
+  /// 替换消息
+  void replaceMessage(T oldMsg, T newMsg) {
+    final msgIdx = messages.value.indexOf(oldMsg);
+    if (msgIdx != -1) {
+      final list = [...messages.value];
+      list[msgIdx] = newMsg;
+      messages.value = list;
+      return;
+    }
+    final histIdx = historyMessages.value.indexOf(oldMsg);
+    if (histIdx != -1) {
+      final list = [...historyMessages.value];
+      list[histIdx] = newMsg;
+      historyMessages.value = list;
+    }
+  }
+
   /// 重连后从最新消息开始拉取新消息，返回获取到的列表（空表示断线期间无新消息）。
   ///
   /// 若当前正在加载新消息，直接返回空列表。
