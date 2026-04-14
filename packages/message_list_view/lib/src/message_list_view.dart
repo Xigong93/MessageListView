@@ -7,7 +7,7 @@ import 'loading_indicator.dart';
 import 'message_list_controller.dart';
 
 /// 构建列表项的回调。
-typedef MessageItemBuilder<T> = Widget Function(
+typedef MessageItemBuilder<T> = MessageItemView Function(
     BuildContext context, T item, int index);
 
 /// 双向消息列表视图，负责消息展示、滚动管理和加载触发。
@@ -212,6 +212,20 @@ class _MessageListViewState<T> extends State<MessageListView<T>> {
           ),
         );
       },
+    );
+  }
+}
+
+class MessageItemView extends StatelessWidget {
+  final Widget child;
+
+  // 将 key 设置为 required
+  const MessageItemView({required Key key, required this.child}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      child: child,
     );
   }
 }

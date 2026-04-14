@@ -165,8 +165,8 @@ class MessageContentViewState extends State<MessageContentView> {
                   children: [
                     MessageListView<Message>(
                       controller,
-                      itemBuilder: (context, message, index) => KeyedSubtree(
-                        key: GlobalObjectKey(message.id),
+                      itemBuilder: (context, message, index) => MessageItemView(
+                        key: ValueKey(message.id),
                         child: MessageBubble(message: message),
                       ),
                     ),

@@ -149,16 +149,22 @@ class MessageListController<T> {
     }
   }
 
+  /// 刷新消息
+  void refreshMessage(T t) {
+    replaceMessage((ele) => ele == t, t);
+  }
+
   /// 替换消息
-  void replaceMessage(T oldMsg, T newMsg) {
-    final msgIdx = messages.value.indexOf(oldMsg);
+  /// [isMatch] 匹配器
+  void replaceMessage(bool Function(T t) isMatch, T newMsg) {
+    final msgIdx = messages.value.indexWhere(isMatch);
     if (msgIdx != -1) {
       final list = [...messages.value];
       list[msgIdx] = newMsg;
       messages.value = list;
       return;
     }
-    final histIdx = historyMessages.value.indexOf(oldMsg);
+    final histIdx = historyMessages.value.indexWhere(isMatch);
     if (histIdx != -1) {
       final list = [...historyMessages.value];
       list[histIdx] = newMsg;
