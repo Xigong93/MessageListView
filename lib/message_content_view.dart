@@ -144,6 +144,24 @@ class MessageContentViewState extends State<MessageContentView> {
     return i >= 0 ? i : null;
   }
 
+  /// 当前消息与上一条消息时间差超过 1 分钟时显示时间戳。
+  bool _shouldShowTimestamp(Message? prev, Message current) {
+    if (prev == null) return true;
+    return current.sendTime.difference(prev.sendTime).inMinutes >= 1;
+  }
+
+  Widget _buildTimestamp(DateTime time) {
+    final text = '${time.hour.toString().padLeft(2, '0')}:'
+        '${time.minute.toString().padLeft(2, '0')}';
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Text(
+        text,
+        style: const TextStyle(fontSize: 12, color: Color(0xFF999999)),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return KeyboardVisibilityBuilder(
@@ -165,9 +183,16 @@ class MessageContentViewState extends State<MessageContentView> {
                   children: [
                     MessageListView<Message>(
                       controller,
-                      itemBuilder: (context, message, index) => MessageItemView(
+                      itemBuilder: (context, message, prevMessage, index) => MessageItemView(
                         key: ValueKey(message.id),
-                        child: MessageBubble(message: message),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (_shouldShowTimestamp(prevMessage, message))
+                              _buildTimestamp(message.sendTime),
+                            MessageBubble(message: message),
+                          ],
+                        ),
                       ),
                     ),
                     _buildScrollToBottomButton(),

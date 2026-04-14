@@ -6,6 +6,9 @@ class MockMessageService {
   /// 最新一条初始消息的 ID
   static const _newestId = 100;
 
+  // 基准时间：2025-01-01 08:00
+  static final _baseTime = DateTime(2025, 1, 1, 8, 0);
+
   Message _makeMessage(int id) {
     // text 50%, image/video/voice 各约 16.7%
     const types = [
@@ -17,10 +20,13 @@ class MockMessageService {
       MessageType.voice,
     ];
     final type = types[id % types.length];
+    // 每组 5 条消息间隔 30s，组间额外加 5 分钟，使时间戳效果可见
+    final offsetSeconds = (id ~/ 5) * 5 * 60 + (id % 5) * 30;
     return Message(
       id: id,
       content: '第${id + 1}条消息',
       type: type,
+      sendTime: _baseTime.add(Duration(seconds: offsetSeconds)),
     );
   }
 

@@ -7,8 +7,11 @@ import 'loading_indicator.dart';
 import 'message_list_controller.dart';
 
 /// 构建列表项的回调。
+///
+/// [prevItem] 为时间上紧邻的上一条消息，可据此决定是否显示时间戳等分隔信息。
+/// 列表最旧一条消息的 [prevItem] 为 null。
 typedef MessageItemBuilder<T> = MessageItemView Function(
-    BuildContext context, T item, int index);
+    BuildContext context, T item, T? prevItem, int index);
 
 /// 双向消息列表视图，负责消息展示、滚动管理和加载触发。
 ///
@@ -153,8 +156,15 @@ class _MessageListViewState<T> extends State<MessageListView<T>> {
       builder: (_, historyMessages, __) {
         return SliverList.builder(
           itemCount: historyMessages.length,
-          itemBuilder: (context, index) =>
-              widget.itemBuilder(context, historyMessages[index], index),
+          // historyMessages 降序存储（index 0 最新），视觉上向上增长。
+          // index+1 处是时间更早的消息，即当前消息的"上一条"。
+          itemBuilder: (context, index) {
+            final prevItem = index + 1 < historyMessages.length
+                ? historyMessages[index + 1]
+                : null;
+            return widget.itemBuilder(
+                context, historyMessages[index], prevItem, index);
+          },
         );
       },
     );
@@ -168,8 +178,12 @@ class _MessageListViewState<T> extends State<MessageListView<T>> {
       builder: (_, messages, __) {
         return SliverList.builder(
           itemCount: messages.length,
-          itemBuilder: (context, index) =>
-              widget.itemBuilder(context, messages[index], index),
+          // messages 升序存储（index 0 最旧），index-1 是时间更早的上一条。
+          itemBuilder: (context, index) {
+            final prevItem = index > 0 ? messages[index - 1] : null;
+            return widget.itemBuilder(
+                context, messages[index], prevItem, index);
+          },
         );
       },
     );
@@ -220,7 +234,8 @@ class MessageItemView extends StatelessWidget {
   final Widget child;
 
   // 将 key 设置为 required
-  const MessageItemView({required Key key, required this.child}) : super(key: key);
+  const MessageItemView({required Key key, required this.child})
+      : super(key: key);
 
   @override
   Widget build(BuildContext context) {
