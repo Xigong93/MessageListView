@@ -46,6 +46,9 @@ class MessageListController<T> {
   final ValueNotifier<LoadMoreStatus> loadNewStatus =
   ValueNotifier(LoadMoreStatus.idle);
 
+  /// 初始滚动定位完成后置为 true，防止定位前触发加载。
+  final ValueNotifier<bool> isReady = ValueNotifier(false);
+
   MessageListController(this._provider, {this.onError});
 
   // ───────────────────────────── 错误上报 ─────────────────────────────
@@ -70,6 +73,7 @@ class MessageListController<T> {
   /// - [startMsgId] 为空：加载最新消息，完成后滚动到底部。
   /// - [startMsgId] 不为空：加载指定位置消息，完成后保持顶部。
   Future<void> loadMessage() async {
+    isReady.value = false;
     loadHistoryStatus.value = LoadMoreStatus.idle;
     loadNewStatus.value = LoadMoreStatus.idle;
     initialLoadStatus.value = InitialLoadStatus.loading;
@@ -81,7 +85,8 @@ class MessageListController<T> {
       result.hasMoreNew ? LoadMoreStatus.idle : LoadMoreStatus.noMore;
       initialLoadStatus.value = InitialLoadStatus.success;
       // hasMoreNew 为 false 意味着已加载最新消息，滚到底部
-      if (!result.hasMoreNew) scrollToBottom(anim: false);
+      if (!result.hasMoreNew) await scrollToBottom(anim: false);
+      isReady.value = true;
     } catch (e, s) {
       _reportError(e, s, 'loadMessage');
       initialLoadStatus.value = InitialLoadStatus.error;
@@ -238,6 +243,7 @@ class MessageListController<T> {
     initialLoadStatus.dispose();
     loadHistoryStatus.dispose();
     loadNewStatus.dispose();
+    isReady.dispose();
     scrollController.dispose();
     _provider.dispose();
   }

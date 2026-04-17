@@ -37,9 +37,6 @@ class MessageListView<T> extends StatefulWidget {
 class _MessageListViewState<T> extends State<MessageListView<T>> {
   final _centerKey = UniqueKey();
 
-  /// 初始滚动定位完成后置为 true，防止定位前触发加载。
-  bool _isReady = false;
-
   MessageListController<T> get _controller => widget.controller;
 
   // ───────────────────────────── 生命周期 ─────────────────────────────
@@ -48,38 +45,13 @@ class _MessageListViewState<T> extends State<MessageListView<T>> {
   void initState() {
     super.initState();
     _controller.scrollController.addListener(_onScroll);
-    _controller.initialLoadStatus.addListener(_onInitialLoadChanged);
-  }
-
-  @override
-  void dispose() {
-    _controller.initialLoadStatus.removeListener(_onInitialLoadChanged);
-    super.dispose();
-  }
-
-  // ───────────────────────────── 初始加载完成处理 ─────────────────────────────
-
-  void _onInitialLoadChanged() {
-    switch (_controller.initialLoadStatus.value) {
-      case InitialLoadStatus.loading:
-        // 重新加载（如 reload），隐藏列表
-        setState(() => _isReady = false);
-      case InitialLoadStatus.success:
-        // 加载成功，等待布局后显示列表
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
-          setState(() => _isReady = true);
-        });
-      case InitialLoadStatus.error:
-        // 保持 _isReady = false，由 overlay 显示错误 UI
-        break;
-    }
   }
 
   // ───────────────────────────── 滚动事件 ─────────────────────────────
 
   void _onScroll() {
-    if (!_isReady || !_controller.scrollController.hasClients) return;
+    if (!_controller.isReady.value || !_controller.scrollController.hasClients)
+      return;
     final position = _controller.scrollController.position;
 
     final initialDone =
@@ -113,8 +85,10 @@ class _MessageListViewState<T> extends State<MessageListView<T>> {
   }
 
   Widget _buildScrollView() {
-    return Opacity(
-      opacity: _isReady ? 1.0 : 0.0,
+    return ValueListenableBuilder(
+      valueListenable: _controller.isReady,
+      builder: (_, isReady, child) =>
+          Opacity(opacity: isReady ? 1.0 : 0.0, child: child!),
       child: CustomScrollView(
         controller: _controller.scrollController,
         center: _centerKey,
