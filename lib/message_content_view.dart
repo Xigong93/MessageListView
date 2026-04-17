@@ -109,29 +109,7 @@ class MessageContentViewState extends State<MessageContentView> {
   /// - 无新消息：弹出 SnackBar 提示。
   /// - 有新消息且在底部：自动滚到底部。
   /// - 有新消息但不在底部：累加未读数，显示"N 条新消息"按钮。
-  Future<void> reconnect() async {
-    if (isReconnecting.value) return;
-    isReconnecting.value = true;
-    final wasAtBottom = controller.atBottom;
-    try {
-      final newMessages = await controller.reconnectAndFetch();
-      if (!mounted) return;
-      if (newMessages.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('断线期间无新消息'),
-            duration: Duration(seconds: 2),
-          ),
-        );
-      } else if (wasAtBottom) {
-        controller.scrollToBottom(anim: true);
-      } else {
-        _unreadCount.value += newMessages.length;
-      }
-    } finally {
-      if (mounted) isReconnecting.value = false;
-    }
-  }
+  Future<void> reconnect() async {}
 
   /// 滚动到指定消息。先估算偏移量跳转，再用 ensureVisible 精确定位。
   void _scrollToMessage(int messageId) {
@@ -183,7 +161,8 @@ class MessageContentViewState extends State<MessageContentView> {
                   children: [
                     MessageListView<Message>(
                       controller,
-                      itemBuilder: (context, message, prevMessage, index) => MessageItemView(
+                      itemBuilder: (context, message, prevMessage, index) =>
+                          MessageItemView(
                         key: ValueKey(message.id),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,

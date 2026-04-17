@@ -157,11 +157,11 @@ class _MessageListPageState extends State<MessageListPage> {
               const Text('显示群公告', style: TextStyle(fontSize: 14)),
               const Spacer(),
               Switch(
-                  value: _showAnnouncement,
-                  onChanged: _onAnnouncementChanged),
+                  value: _showAnnouncement, onChanged: _onAnnouncementChanged),
             ],
           ),
-          if (controller != null) ListenableBuilder(
+          if (controller != null)
+            ListenableBuilder(
               listenable: Listenable.merge([
                 controller.initialLoadStatus,
                 controller.loadNewStatus,
@@ -193,15 +193,6 @@ class _MessageListPageState extends State<MessageListPage> {
                           ),
                         ),
                       ],
-                    ),
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      width: double.infinity,
-                      child: CapsuleButton(
-                        text: isReconnecting ? '重连中...' : '模拟重连',
-                        enabled: !isLoadingInitial && !isReconnecting,
-                        onTap: () => _contentKey.currentState?.reconnect(),
-                      ),
                     ),
                   ],
                 );
