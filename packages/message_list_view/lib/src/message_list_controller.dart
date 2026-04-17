@@ -10,10 +10,10 @@ import 'message_provider.dart';
 /// - [stack]：对应的堆栈信息。
 /// - [operation]：发生异常的操作名称（`loadMessage` / `loadMoreHistory` / `loadNewMessage`）。
 typedef MessageErrorHandler = void Function(
-  Object error,
-  StackTrace stack,
-  String operation,
-);
+    Object error,
+    StackTrace stack,
+    String operation,
+    );
 
 /// 消息列表的统一控制器，持有全部状态、协调加载逻辑，并管理 [ScrollController]。
 ///
@@ -36,15 +36,15 @@ class MessageListController<T> {
 
   /// 首次加载的状态。
   final ValueNotifier<InitialLoadStatus> initialLoadStatus =
-      ValueNotifier(InitialLoadStatus.loading);
+  ValueNotifier(InitialLoadStatus.loading);
 
   /// 加载历史消息的状态。
   final ValueNotifier<LoadMoreStatus> loadHistoryStatus =
-      ValueNotifier(LoadMoreStatus.idle);
+  ValueNotifier(LoadMoreStatus.idle);
 
   /// 加载新消息的状态。
   final ValueNotifier<LoadMoreStatus> loadNewStatus =
-      ValueNotifier(LoadMoreStatus.idle);
+  ValueNotifier(LoadMoreStatus.idle);
 
   MessageListController(this._provider, {this.onError});
 
@@ -78,7 +78,7 @@ class MessageListController<T> {
       messages.value = result.messages;
       historyMessages.value = [];
       loadNewStatus.value =
-          result.hasMoreNew ? LoadMoreStatus.idle : LoadMoreStatus.noMore;
+      result.hasMoreNew ? LoadMoreStatus.idle : LoadMoreStatus.noMore;
       initialLoadStatus.value = InitialLoadStatus.success;
       // hasMoreNew 为 false 意味着已加载最新消息，滚到底部
       if (!result.hasMoreNew) scrollToBottom(anim: false);
@@ -102,7 +102,7 @@ class MessageListController<T> {
       // provider 返回升序列表，反转为降序后追加到历史列表末尾
       historyMessages.value = [...historyMessages.value, ...list.reversed];
       loadHistoryStatus.value =
-          list.isEmpty ? LoadMoreStatus.noMore : LoadMoreStatus.idle;
+      list.isEmpty ? LoadMoreStatus.noMore : LoadMoreStatus.idle;
     } catch (e, s) {
       _reportError(e, s, 'loadMoreHistory');
       loadHistoryStatus.value = LoadMoreStatus.error;
@@ -120,7 +120,7 @@ class MessageListController<T> {
       final list = await _provider.fetchNew(newestItem);
       messages.value = [...messages.value, ...list];
       loadNewStatus.value =
-          list.isEmpty ? LoadMoreStatus.noMore : LoadMoreStatus.idle;
+      list.isEmpty ? LoadMoreStatus.noMore : LoadMoreStatus.idle;
     } catch (e, s) {
       _reportError(e, s, 'loadNewMessage');
       loadNewStatus.value = LoadMoreStatus.error;
@@ -194,16 +194,32 @@ class MessageListController<T> {
   Future<void> _scrollTo(double Function() getTarget,
       {required bool anim}) async {
     if (!scrollController.hasClients) return;
-    await WidgetsBinding.instance.endOfFrame;
-    final target = getTarget();
     if (anim) {
+      await WidgetsBinding.instance.endOfFrame;
       await scrollController.animateTo(
-        target,
+        getTarget(),
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeOut,
       );
+      // 动画期间 maxScrollExtent 可能增长，动画结束后迭代修正剩余偏差
+      var last = double.nan;
+      for (int i = 0; i < 5; i++) {
+        await WidgetsBinding.instance.endOfFrame;
+        final current = getTarget();
+        if (current == last) break;
+        last = current;
+        scrollController.jumpTo(current);
+      }
     } else {
-      scrollController.jumpTo(target);
+      // 迭代跳转：每帧跳到当前目标，直到目标不再增长
+      var last = double.nan;
+      for (int i = 0; i < 10; i++) {
+        await WidgetsBinding.instance.endOfFrame;
+        final current = getTarget();
+        if (current == last) break;
+        last = current;
+        scrollController.jumpTo(current);
+      }
     }
   }
 
